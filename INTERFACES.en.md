@@ -22,7 +22,7 @@ Every request body contains the following common fields (at the same level as bu
 | `merchant_no` | string | Yes | Merchant number |
 | `api_key` | string | Yes | API Key |
 | `timestamp` | int | Yes | Unix seconds; the server validates a **±300s** window |
-| `nonce` | string | No | Anti-replay random string; if omitted, the server deduplicates by signature fingerprint within ±300s. **Generating a unique value per request is recommended** |
+| `nonce` | string | No | Anti-replay random string; the server deduplicates by nonce or signature fingerprint within **600s** (2×300s). **Generating a unique value per request is recommended** |
 | `sign` | string | Yes | See SIGNING.md |
 
 **Key selection**: `pay/*`, `pay-methods/query`, `countries/query`, `balance/query`, and `issue-ticket/*` use `api_secret_pay` (even when a ticket is for a payout order); `payout/*` uses `api_secret_payout`.
@@ -76,8 +76,8 @@ Request: `currency` (optional filter).
 Response `data.balances[]`: `{currency, available(int), frozen(int)}`.
 
 ### POST `/merchant/pay/test/complete` — complete a collection test order (key: pay, **test key only**)
-Request: `order_no` or `out_order_no` (either one) + `result`(`success`|`failed`, required) + `actual_amount`(int, optional).
-Response `data`: `order_no, out_order_no, amount, actual_amount, status`. Calling with a production key is rejected.
+Request: `order_no` or `out_order_no` (either one) + `result`(`success`|`failed`, required) + `actual_amount`(int, optional, 0–`1e15` minor units, strict JSON integer).
+Response `data`: `{ ok(bool), order_no, status(success|failed) }`. Calling with a production key is rejected.
 
 ## 4. Payout
 
@@ -116,7 +116,7 @@ Response `data.banks[]`: `{code, name}` (empty array for wallet types or payment
 ### POST `/merchant/payout/proof/query` — payout proof query (key: payout)
 Request: `payout_no` or `out_payout_no` (either one). Only queryable when `status=success`.
 Response `data`: `payout_no, out_payout_no, proof_url, expires_in(seconds, nullable), queried_at(nullable)`. The proof has a time limit, use it as soon as you obtain it.
-Errors: `300408` (payment method does not support proof queries, or test credentials not supported) / `300409` (order is not in a successful state, proof not found, or outside the query window).
+Errors: `100107` (system under maintenance; pauses during both `write_only` and `full` maintenance because it queries upstream channels) / `300408` (payment method does not support proof queries, or test credentials not supported) / `300409` (order is not in a successful state, proof not found, or outside the query window).
 
 ### POST `/merchant/payout/receipt/query` — payout receipt (key: payout)
 Request: `payout_no` or `out_payout_no` (either one) + `lang`(`en`|`zh-CN`|`zh-TW`, optional) + `inline`(optional, `1`/`0` or boolean `true`/`false`).
@@ -125,7 +125,7 @@ Response: `inline=0`/omitted → `{payout_no, out_payout_no, lang, receipt_url, 
 Errors: `300410` (order is not in `success` state, or test credentials not supported) / `300411` (receipt generation failed).
 
 ### POST `/merchant/payout/test/complete` — complete a payout test order (key: payout, **test key only**)
-Request: `payout_no` or `out_payout_no` (either one) + `result`(`success`|`failed`, required). Response: `{payout_no, out_payout_no, amount, status}`.
+Request: `payout_no` or `out_payout_no` (either one) + `result`(`success`|`failed`, required). Response `data`: `{ ok(bool), payout_no, status(success|failed) }`.
 
 ### Payout precheck (the merchant's own endpoint)
 
@@ -142,7 +142,7 @@ The body must be exactly these four non-empty strings:
 
 After a successful create, save `out_payout_no`, `account_no`, and the `sign` that was actually sent. The SDK exposes that sign as: Node.js return value `sign`, Python `.sign` on the returned data, PHP `lastRequestSign()` read immediately after the call returns, Go `Response.Sign`, Java `ApiResponse.requestSign()`. If `payout/create` encounters a transport failure (e.g., timeout after the server already accepted the order and later triggers precheck), the sent `sign` is also exposed on the transport error: Node.js `err.requestSign`, Python `err.request_sign`, PHP `$e->requestSign` / `$client->lastRequestSign()`, Go `te.RequestSign`, Java `e.requestSign()`.
 
-Helper names: Node.js `decidePayoutPrecheck`, Python `decide_payout_precheck`, PHP `PayoutPrecheck::decide`, Go `DecidePayoutPrecheck`, Java `PayoutPrecheck.decide`. The only return values are the exact strings `approve` and `reject`. Invalid input returns `reject` and does not throw. The HTTP body must be that string alone, with no added space, newline, BOM, or JSON. `approve` only passes this check and does not skip the existing review.
+Helper names: Node.js `decidePayoutPrecheck`, Python `decide_payout_precheck`, PHP `PayoutPrecheck::decide`, Go `DecidePayoutPrecheck`, Java `PayoutPrecheck.decide`. The only return values are the exact strings `approve` and `reject`. Invalid input returns `reject` and does not throw. The HTTP body must be that string alone, with no added space, newline, BOM, or JSON. Total timeout is **3000ms** per request (covering DNS/TLS/body) with a **64-byte** response body cap; returning exact `reject` or any non-200 status (including 502/503/504) immediately rejects without retrying; only timeouts and network errors are retried up to **3 attempts total** back-to-back with no backoff delay. `approve` only passes this check and does not skip the existing review.
 
 ## 5. Callback (Notify)
 
@@ -164,13 +164,12 @@ When an order reaches a terminal state (or a ticket receives a new upstream repl
 | 100001 | 200 | Parameter validation failed (message is the specific field error, e.g. `"amount" must be a number`) |
 | 100101 | 200 | Request expired (timestamp outside ±300s) |
 | 100102 | 200 | IP not in the allowlist |
-| 100103 | 200 | Replay / duplicate request (nonce or signature fingerprint repeated within 300s) |
+| 100103 | 200 | Replay / duplicate request (nonce or signature fingerprint repeated within 600s) |
 | 100104 | 200 | Signature error |
 | 100105 | 200 | IP in the blocklist |
 | 100106 | 200 | Too many auth failures (rate limited; same merchant_no + IP fails auth 60 times within 60s) |
+| 100107 | 200 | System under maintenance (HTTP 200 envelope with `Retry-After` header; during `write_only` maintenance local read endpoints stay available except `payout/proof/query`, which queries upstream channels; during `full` maintenance all endpoints except `/version` pause) |
 | 100108 | 429 | Too many landing-page reads (> 6000 calls per IP per 60s; `Retry-After` header included) |
-| 200002 | 200 | Service account disabled |
-| 210002 | 200 | Merchant disabled |
 | 300101 | 200 | Duplicate collection order number (rejected whenever out_order_no already exists, regardless of parameter equality; query first when the result is unknown, and use a new number to re-submit) |
 | 300201 | 200 | Duplicate payout order number (rejected whenever out_payout_no already exists, regardless of parameter equality) |
 | 300301 | 200 | Order does not exist |
@@ -203,10 +202,10 @@ Request (common fields +):
 | Field | Type | Required | Description |
 |------|------|------|------|
 | `order_no` | string | Yes | Platform order number or merchant order number |
-| `content` | string | No | Ticket text (a ticket is still created when both content and image are empty) |
-| `image_base64` | string | No | Raw Base64 screenshot (participates in signing; no `data:` prefix; decoded size ≤ 5MB); provide together with `image_mime`, or omit both |
+| `content` | string | No | Ticket text (≤ 1000 chars; a ticket is still created when both content and image are empty, with a default placeholder note) |
+| `image_base64` | string | No | Raw Base64 screenshot (participates in signing; no `data:` prefix; ≤ 7,000,000 chars, decoded size ≤ 5MB, total request body limit 8MB); provide together with `image_mime`, or omit both |
 | `image_mime` | string | No | Only `image/jpeg`, `image/png`, `image/webp` |
-| `notify_url` | string | No | Optional public HTTPS callback URL; omit/empty for no callback; internal address or invalid scheme returns `100001` and creates no ticket |
+| `notify_url` | string | No | Optional public HTTP/HTTPS callback URL (HTTPS recommended, ≤ 255 chars); omit/empty for no callback; internal address or invalid scheme returns `100001` and creates no ticket |
 
 Response `data`: `ticket_no, order_no, out_order_no(nullable), order_type(pay|payout)` (does not include ticket status).
 Common errors: `100001` (invalid params/image/notify_url) / `300301` (order not found) / `300309` (order status does not accept a ticket).
@@ -214,4 +213,4 @@ Common errors: `100001` (invalid params/image/notify_url) / `300301` (order not 
 ### POST `/merchant/issue-ticket/query` — query a ticket (key: pay)
 Request: `ticket_no` or `order_no` (**provide at least one**; when only `order_no` is given, the latest ticket for that order is returned).
 Response `data`: `ticket_no, order_type(pay|payout), order_no, out_order_no(nullable), status(open|forwarded|replied|forward_failed|closed), content(nullable), has_photo(bool), created_at(nullable ISO8601), replied_at(nullable ISO8601), replies[](at most 100 items, each with content/original_content/has_photo/has_attachment/created_at), replies_truncated(bool)`. Screenshot bytes and `forward_error` are not returned.
-Common errors: `300308` (ticket not found) / `300301` (order not found).
+Common errors: `300308` (ticket not found; also returned when both `ticket_no` and `order_no` are given but do not refer to the same ticket).

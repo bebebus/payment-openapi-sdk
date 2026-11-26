@@ -48,7 +48,7 @@ func main() {
 
     resp, err := client.PayCreate(context.Background(), map[string]any{
         "out_order_no": "202501010001",
-        "amount":       10000, // 最小单位整数，10000 = 1 元
+        "amount":       100000, // 最小单位整数，10000 = 1 元（PHP 下限 10 PHP = 100000）
         "currency":     "PHP",
         "pay_method":   "gcash",
         "country":      "PH",

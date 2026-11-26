@@ -53,7 +53,7 @@ const client = new Client(
 // Create a collection order (pay_method required)
 const { data, raw } = await client.payCreate({
   out_order_no: 'ORDER_' + Date.now(),
-  amount: 10000,
+  amount: 100000,
   currency: 'PHP',
   pay_method: 'gcash',
   country: 'PH',

@@ -49,7 +49,7 @@ npm / PyPI / Packagist / Go 四套上架对应包索引（scoped 到 `bebebus`�
 | Node.js | `npm i @bebebus/merchant-openapi-sdk`；`import { Client } from '@bebebus/merchant-openapi-sdk'` | `node:https` / `node:http` | `cd nodejs && node --test` |
 | Python | `pip install bebebus-merchant-openapi-sdk`；`from openapi_sdk import Client` | `urllib.request` | `cd python && python3 -m unittest discover -s tests` |
 | PHP | `composer require bebebus/merchant-openapi-sdk`；命名空间 `Merchant\Openapi` | cURL 扩展 | `cd php && php tests/run.php` |
-| Go | `go get github.com/bebebus/SDK/go/v2@v2.3.0`（最低 Go 1.21）；`import openapi "github.com/bebebus/SDK/go/v2"` | `net/http` | `cd go && go test -count=1 ./...` |
+| Go | `go get github.com/bebebus/SDK/go/v2@v2.3.1`（最低 Go 1.21）；`import openapi "github.com/bebebus/SDK/go/v2"` | `net/http` | `cd go && go test -count=1 ./...` |
 | Java | **源码引入（不发 Maven）**；`import cloud.cniia.openapi.sdk.Client` | `java.net.http.HttpClient` | `cd java && bash run-tests.sh` |
 
 > Go 测试读取外部 `test-vectors.json`，`go test` 的缓存不追踪该文件，**改向量后用 `-count=1`** 强制重跑。
@@ -93,10 +93,10 @@ const client = new Client(new Config({
   // 本地联调可改用：environment: Environment.SANDBOX,
 }));
 
-// 代收下单（pay_method 必填；金额为最小单位整数，10000 = 1 元）
+// 代收下单（pay_method 必填；金额为最小单位整数，10000 = 1 元，PHP 下限 10 PHP = 100000）
 const { data } = await client.payCreate({
   out_order_no: 'order-' + Date.now(),
-  amount: 10000, currency: 'PHP', pay_method: 'gcash', country: 'PH',
+  amount: 100000, currency: 'PHP', pay_method: 'gcash', country: 'PH',
   notify_url: 'https://merchant.example.com/api/notify/pay',
 });
 console.log(data.order_no, data.pay_url);

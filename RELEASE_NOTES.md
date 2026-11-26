@@ -2,6 +2,20 @@
 
 This file summarizes user-visible changes for each SDK release. It is maintained alongside the GitHub Releases page and is not a raw Git history export.
 
+## v2.3.1 (2026-11-27) — contract alignment, error-code appendices & runnable example fixes
+
+- **Error-code appendices synced across all five languages (`appendix/error-codes.*`)**:
+  - Added `100107` (system under maintenance: HTTP 200 envelope with `Retry-After` header and `data.{maintenance, mode, planned_end, source, gate_id}`; notes that `payout/proof/query` also pauses during `write_only` maintenance because it queries upstream channels).
+  - Removed obsolete `200002` and `210002` (disabled merchant / service account auth failures are unified into code `1` with a generic authentication-failed message to prevent enumeration).
+  - Updated `100103` replay window documentation from `300s` to `600s` (`2×300s`) and clarified `300302` (`pay/create` response assembly failure — verify via `pay/query` before retrying).
+- **Contract & signing documentation alignment (`INTERFACES(.en).md`, `SIGNING(.en).md`)**:
+  - Updated `/merchant/pay/test/complete` and `/merchant/payout/test/complete` response shapes to `{ ok, order_no|payout_no, status }`, plus `actual_amount` integer range (`0`–`1e15`).
+  - Documented payout precheck details, callback `8000ms` single-attempt timeout and no-redirect (`redirect: manual`) behavior, and issue-ticket constraints (`content` ≤ 1000 chars, `image_base64` ≤ 7,000,000 chars / 5 MB decoded / 8 MB request body, `notify_url` ≤ 255 chars, `300308` mismatch behavior).
+- **Runnable examples & READMEs (all five languages)**:
+  - Updated PHP demo amounts across all 12 READMEs and 6 runnable examples (`pay_create.*`, `go/examples/dev_smoke/main.go`) from `10000` (1 PHP, rejected by server floor) to `100000` (10 PHP minimum).
+- **No runtime/API breaking changes**: signing vectors (`test-vectors.json`) and method signatures are unchanged.
+- Version bumped to `2.3.1` across all five SDKs (`package.json`/`package-lock.json`, `pyproject.toml`, `Client::VERSION`/`Version`/`VERSION` constants, `java/pom.xml`, and source-run version fallbacks). Go: `go get github.com/bebebus/SDK/go/v2@v2.3.1` (tag `go/v2.3.1`).
+
 ## v2.3.0 (2026-11-21) — issue tickets, non-2xx business errors & security/protocol hardening
 
 - **New issue-ticket endpoints & callback verifier (all five languages)**:

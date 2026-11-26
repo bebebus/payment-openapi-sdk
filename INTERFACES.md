@@ -22,7 +22,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 | `merchant_no` | string | 是 | 商户号 |
 | `api_key` | string | 是 | API Key |
 | `timestamp` | int | 是 | Unix 秒；服务端校验 **±300s** 窗口 |
-| `nonce` | string | 否 | 防重放随机串；不传则服务端按签名指纹在 ±300s 内去重。**建议每请求生成唯一值** |
+| `nonce` | string | 否 | 防重放随机串；服务端按 nonce 或签名指纹在 **600s**（2×300s）内去重。**建议每请求生成唯一值** |
 | `sign` | string | 是 | 见 SIGNING.md |
 
 **密钥选择**：`pay/*`、`pay-methods/query`、`countries/query`、`balance/query`、`issue-ticket/*` 用 `api_secret_pay`（即使工单对应的是代付单，仍用 `api_secret_pay`）；`payout/*` 用 `api_secret_payout`。
@@ -76,8 +76,8 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 响应 `data.balances[]`：`{currency, available(int), frozen(int)}`。
 
 ### POST `/merchant/pay/test/complete` — 代收测试单完成（密钥：pay，**仅测试密钥**）
-请求：`order_no` 或 `out_order_no`（二选一）+ `result`(`success`|`failed`, 必填) + `actual_amount`(int, 可选)。
-响应 `data`：`order_no, out_order_no, amount, actual_amount, status`。正式密钥调用会被拒绝。
+请求：`order_no` 或 `out_order_no`（二选一）+ `result`(`success`|`failed`, 必填) + `actual_amount`(int, 可选，0~`1e15` 最小单位整数，严格要求 JSON 整数)。
+响应 `data`：`{ ok(bool), order_no, status(success|failed) }`。正式密钥调用会被拒绝。
 
 ## 四、代付（Payout）
 
@@ -116,7 +116,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 ### POST `/merchant/payout/proof/query` — 代付凭证查询（密钥：payout）
 请求：`payout_no` 或 `out_payout_no`（二选一）。仅 `status=success` 可查。
 响应 `data`：`payout_no, out_payout_no, proof_url, expires_in(秒，可空), queried_at(可空)`。凭证有时效，即取即用。
-错误：`300408`(当前支付方式不支持凭证查询或测试密钥不支持) / `300409`(订单不是成功状态、未找到凭证或超出查询时限)。
+错误：`100107`(系统维护中；因需回源上游渠道，停写 `write_only` 与全量 `full` 维护期间均暂停) / `300408`(当前支付方式不支持凭证查询或测试密钥不支持) / `300409`(订单不是成功状态、未找到凭证或超出查询时限)。
 
 ### POST `/merchant/payout/receipt/query` — 代付收据（密钥：payout）
 请求：`payout_no` 或 `out_payout_no`（二选一）+ `lang`(`en`|`zh-CN`|`zh-TW`, 可选) + `inline`(可选，`1`/`0` 或布尔 `true`/`false`)。
@@ -125,7 +125,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 错误：`300410`(订单非 `success` 状态或测试密钥不支持收据) / `300411`(收据生成失败)。
 
 ### POST `/merchant/payout/test/complete` — 代付测试单完成（密钥：payout，**仅测试密钥**）
-请求：`payout_no` 或 `out_payout_no`（二选一）+ `result`(`success`|`failed`, 必填)。响应：`{payout_no, out_payout_no, amount, status}`。
+请求：`payout_no` 或 `out_payout_no`（二选一）+ `result`(`success`|`failed`, 必填)。响应 `data`：`{ ok(bool), payout_no, status(success|failed) }`。
 
 ### 代付订单反查（商户自己的接口）
 
@@ -142,7 +142,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 
 下单成功后保存 `out_payout_no`、`account_no` 和这次请求的 `sign`。`sign` 由 SDK 生成：Node.js 在返回值 `sign`，Python 在返回数据的 `.sign`，PHP 用 `lastRequestSign()`（该次调用返回后立刻读），Go 在 `Response.Sign`，Java 在 `ApiResponse.requestSign()`。若 `payout/create` 遇网络超时等传输异常（服务端可能已受理并随后发起反查），也可从传输异常中读取本次实际发出的 `sign`（Node.js `err.requestSign`、Python `err.request_sign`、PHP `$e->requestSign` / `$client->lastRequestSign()`、Go `te.RequestSign`、Java `e.requestSign()`）。
 
-助手名称：Node.js `decidePayoutPrecheck`，Python `decide_payout_precheck`，PHP `PayoutPrecheck::decide`，Go `DecidePayoutPrecheck`，Java `PayoutPrecheck.decide`。返回值只有精确的 `approve` 或 `reject`。非法输入返回 `reject`，不抛异常。响应体必须是这个字符串本身，不能附加空格、换行、BOM 或 JSON。`approve` 只表示通过这次确认，不跳过原有审核。
+助手名称：Node.js `decidePayoutPrecheck`，Python `decide_payout_precheck`，PHP `PayoutPrecheck::decide`，Go `DecidePayoutPrecheck`，Java `PayoutPrecheck.decide`。返回值只有精确的 `approve` 或 `reject`。非法输入返回 `reject`，不抛异常。响应体必须是这个字符串本身，不能附加空格、换行、BOM 或 JSON。单次请求总超时 **3000ms**（含 DNS/TLS/读体）、响应体上限 **64 字节**；返回精确 `reject` 或任意非 200 状态码（含 502/503/504 等 5xx）立即拒绝且不重试；仅超时/网络错误连续重试，含首次在内最多 **3 次**（无退避间隔）。`approve` 只表示通过这次确认，不跳过原有审核。
 
 ## 五、回调（Notify）
 
@@ -164,13 +164,12 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 | 100001 | 200 | 参数校验失败（message 为具体字段错误，如 `"amount" must be a number`） |
 | 100101 | 200 | 请求过期（timestamp 超 ±300s） |
 | 100102 | 200 | IP 不在白名单 |
-| 100103 | 200 | 重放 / 重复请求（nonce 或签名指纹 300s 内重复） |
+| 100103 | 200 | 重放 / 重复请求（nonce 或签名指纹 600s 内重复） |
 | 100104 | 200 | 签名错误 |
 | 100105 | 200 | IP 在黑名单 |
 | 100106 | 200 | 鉴权失败次数过多（限流；同 merchant_no + IP 60s 内失败达 60 次） |
+| 100107 | 200 | 系统维护中（HTTP 200 信封，附带 `Retry-After` 响应头；停写维护时本地只读查询仍可用，但 `payout/proof/query` 因回源上游也会暂停；全量维护时除 `/version` 外均暂停） |
 | 100108 | 429 | 落地页读单过于频繁（同 IP 每 60 秒超 6000 次；响应头含 `Retry-After`） |
-| 200002 | 200 | 服务账户已禁用 |
-| 210002 | 200 | 商户已禁用 |
 | 300101 | 200 | 代收单号重复（同 out_order_no 已存在即拒，无论参数是否相同；结果未知先查单，重下须换新单号） |
 | 300201 | 200 | 代付单号重复（同 out_payout_no 已存在即拒，无论参数是否相同） |
 | 300301 | 200 | 订单不存在 |
@@ -203,10 +202,10 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `order_no` | string | 是 | 平台订单号或商户订单号 |
-| `content` | string | 否 | 工单说明（与截图都空也会建单） |
-| `image_base64` | string | 否 | 截图原始 Base64（参与签名，勿加 `data:` 前缀，解码后 ≤ 5MB）；与 `image_mime` 同时提供或同时省略 |
+| `content` | string | 否 | 工单说明（≤ 1000 字符；与截图都空也会建单并落默认占位文案） |
+| `image_base64` | string | 否 | 截图原始 Base64（参与签名，勿加 `data:` 前缀，≤ 7,000,000 字符、解码后 ≤ 5MB，整条请求体上限 8MB）；与 `image_mime` 同时提供或同时省略 |
 | `image_mime` | string | 否 | 仅 `image/jpeg`、`image/png`、`image/webp` |
-| `notify_url` | string | 否 | 可选公网 HTTPS 回调地址；省略/空则不推送回复；内网地址或非法协议返回 `100001` 且不建单 |
+| `notify_url` | string | 否 | 可选公网 HTTP/HTTPS 回调地址（建议 HTTPS，≤ 255 字符）；省略/空则不推送回复；内网地址或非法协议返回 `100001` 且不建单 |
 
 响应 `data`：`ticket_no, order_no, out_order_no(可空), order_type(pay|payout)`（不含工单状态）。
 常见错误：`100001`（参数/截图/回调地址非法）/ `300301`（订单不存在）/ `300309`（当前订单状态不接受工单）。
@@ -214,4 +213,4 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 ### POST `/merchant/issue-ticket/query` — 查询工单（密钥：pay）
 请求：`ticket_no` 或 `order_no`（**至少填一个**；只填 `order_no` 时返回该订单最新一张工单）。
 响应 `data`：`ticket_no, order_type(pay|payout), order_no, out_order_no(可空), status(open|forwarded|replied|forward_failed|closed), content(可空), has_photo(bool), created_at(可空 ISO8601), replied_at(可空 ISO8601), replies[](最多 100 条，每条含 content/original_content/has_photo/has_attachment/created_at), replies_truncated(bool)`。不返回截图字节与 `forward_error`。
-常见错误：`300308`（工单不存在）/ `300301`（订单不存在）。
+常见错误：`300308`（工单不存在；同时传 `ticket_no` 与 `order_no` 但不匹配同一工单时亦返回此码）。

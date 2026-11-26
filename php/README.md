@@ -73,10 +73,10 @@ $config = new Config(
 $client = new Client($config);
 
 try {
-    // 金额是最小单位整数：10000 = 1.00 元
+    // 金额是最小单位整数：10000 = 1.00 元（PHP 下限 10 PHP = 100000）
     $data = $client->payCreate([
         'out_order_no' => 'ORDER20250101',
-        'amount'       => 10000,
+        'amount'       => 100000,
         'currency'     => 'PHP',
         'pay_method'   => 'gcash',
         'country'      => 'PH',

@@ -73,10 +73,10 @@ $config = new Config(
 $client = new Client($config);
 
 try {
-    // Amounts are integers in the smallest unit: 10000 = 1.00
+    // Amounts are integers in the smallest unit: 10000 = 1.00 (PHP minimum: 10 PHP = 100000)
     $data = $client->payCreate([
         'out_order_no' => 'ORDER20250101',
-        'amount'       => 10000,
+        'amount'       => 100000,
         'currency'     => 'PHP',
         'pay_method'   => 'gcash',
         'country'      => 'PH',

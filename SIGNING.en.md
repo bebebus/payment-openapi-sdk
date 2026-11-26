@@ -105,5 +105,5 @@ An acknowledgement is considered successful when the HTTP status is 2xx and the 
 - JSON `{"message": "success"}` or `{"message":"ok"}` (case-insensitive)
 - JSON string `"success"` / `"ok"`
 
-Otherwise it is treated as a failure and retried (exponential backoff, about `1m,2m,5m,10m,30m,60m`, 6 times total). The SDK callback examples uniformly respond HTTP 200 + plain text `success`.
+Otherwise it is treated as a failure and retried (**8000ms** per-attempt timeout, exponential backoff, about `1m,2m,5m,10m,30m,60m`, 6 times total). The callback service **does not follow 30x redirects** (`redirect: manual`); do not configure a `notify_url` that responds with 301/302 (such as an HTTP→HTTPS redirect). The SDK callback examples uniformly respond HTTP 200 + plain text `success`.
 Processing must be **idempotent** (the same order may be called back multiple times).

@@ -41,9 +41,9 @@ config = Config(
 client = Client(config)
 
 try:
-    # 金额是最小单位整数：10000 = 1 元
+    # 金额是最小单位整数：10000 = 1 元（PHP 下限 10 PHP = 100000）
     order = client.pay_create(
-        out_order_no="ORD1", amount=10000, currency="PHP",
+        out_order_no="ORD1", amount=100000, currency="PHP",
         pay_method="gcash", country="PH",
         notify_url="https://m.example.com/api/notify/pay",
     )

@@ -57,6 +57,9 @@ class TestAppendix(unittest.TestCase):
         self.assertEqual(next(e for e in errors if e["code"] == "100000")["retryable"], "depends")
         # 约定非 200 的错误码：100108（落地页限流 429）、300302（订单数据暂不可用 500）、300304（建单暂不可用 503）。
         known_non_200 = {"100108": 429, "300302": 500, "300304": 503}
+        self.assertIn("100107", codes)
+        self.assertNotIn("200002", codes)
+        self.assertNotIn("210002", codes)
         self.assertIn("300308", codes)
         self.assertIn("300309", codes)
         for e in errors:
