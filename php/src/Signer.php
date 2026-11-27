@@ -270,12 +270,17 @@ final class Signer
     /**
      * 嵌套字符串值的 JSON 编码（带引号），对齐 JS JSON.stringify。
      *
-     * 必须加 JSON_UNESCAPED_SLASHES（默认会把 / 转 \/）和 JSON_UNESCAPED_UNICODE
-     * （默认会把非 ASCII 转 \uXXXX）。不加 JSON_HEX_* —— <>& 默认即不转义，符合规范。
+     * 必须加 JSON_UNESCAPED_SLASHES（默认会把 / 转 \/）、JSON_UNESCAPED_UNICODE
+     * （默认会把非 ASCII 转 \uXXXX）和 JSON_UNESCAPED_LINE_TERMINATORS（默认会把
+     * U+2028/U+2029 转 \u2028/\u2029，而 JS/Node/Python 原样输出 UTF-8）。
+     * 不加 JSON_HEX_* —— <>& 默认即不转义，符合规范。
      */
     private static function jsonString(string $value): string
     {
-        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $encoded = json_encode(
+            $value,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS
+        );
         if ($encoded === false) {
             throw new \RuntimeException('签名序列化失败：无法 JSON 编码字符串 (' . json_last_error_msg() . ')');
         }

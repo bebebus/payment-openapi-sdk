@@ -155,7 +155,7 @@ func (c *Client) PayoutTestComplete(ctx context.Context, params map[string]any) 
 
 // ===================== 工单（密钥 api_secret_pay） =====================
 
-// IssueTicketCreate 创建工单。params 须含 order_no，可选 content、image_base64、image_mime、notify_url。
+// IssueTicketCreate 创建工单。params 须含 order_no，可选 out_ticket_no、content、image_base64、image_mime、notify_url。
 func (c *Client) IssueTicketCreate(ctx context.Context, params map[string]any) (*Response, error) {
 	return c.call(ctx, "/merchant/issue-ticket/create", params, usePay)
 }

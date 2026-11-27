@@ -59,7 +59,7 @@
 ### JSON 字符串转义（嵌套字符串值，须对齐 JS `JSON.stringify`）
 
 - 转义：`"` → `\"`，`\` → `\\`，`\b \f \n \r \t` → 对应 `\b \f \n \r \t`，其余 U+0000–U+001F 控制字符 → `\u00XX`（小写 hex，四位）。
-- **不转义**：`/`（正斜杠保持原样）、`<` `>` `&`（不做 HTML 转义）、所有非 ASCII（中文/emoji 等保持原样 UTF-8，**不**转成 `\uXXXX`）。
+- **不转义**：`/`（正斜杠保持原样）、`<` `>` `&`（不做 HTML 转义）、所有非 ASCII（中文/emoji 以及 **U+2028 / U+2029 行分隔符**均保持原样 UTF-8，**不**转成 `\uXXXX`）。
 
 **反例锚定**：嵌套字符串 `中文"<>&/\` + 换行 + 制表 + `末` 必须序列化为
 `"中文\"<>&/\\\n\t末"`（中文与 `/` `<>&` 原样、`"` 与 `\` 转义、换行制表转 `\n` `\t`）。
@@ -71,9 +71,9 @@
 |------|------------------------------|--------------------------|
 | **Node.js** | `JSON.stringify` + 自写 key 升序递归（`JSON.stringify` 不保证 key 序）。默认转义行为已对：不转 `/`、不转非 ASCII、不转 `<>&`。 | `String(v)` 即对：`String(true)="true"`、`String(10000)="10000"`。 |
 | **Python** | `json.dumps(v, ensure_ascii=False, separators=(',',':'), sort_keys=True)`。**必须** `ensure_ascii=False`（否则非 ASCII 变 `\uXXXX`）。Python 不转义 `/`、`<>&`，与 JS 一致。 | `str(True)=="True"` ✗ → **特判** bool→`"true"/"false"`（且因 `bool` 是 `int` 子类，判断顺序须先 bool 再 int）。 |
-| **PHP** | `json_encode(v, JSON_UNESCAPED_SLASHES \| JSON_UNESCAPED_UNICODE)` + 自写 key 升序（PHP 关联数组需 `ksort` 递归）。默认 `json_encode` 会转 `/` 和非 ASCII，**必须**加这两个 flag。`<>&` 默认不转（除非加 `JSON_HEX_*`，不要加）。 | `(string)true=="1"` ✗、`(string)false==""` ✗ → **特判** bool→`"true"/"false"`。整数 `(string)10000` 正确。 |
-| **Java** | 无内建 JSON：**自写** `stableStringify`（递归、key 升序、紧凑），字符串转义严格按上节实现（只转 `" \ \b\f\n\r\t` 与其余控制字符 `\u00XX`，**不**转 `/`、非 ASCII、`<>&`）。 | `String.valueOf(true)=="true"` 正确；整数用 `Long.toString`/`BigInteger.toString`。注意按值类型分派。 |
-| **Go** | `encoding/json`：**必须** `Encoder.SetEscapeHTML(false)`（默认转 `<>&` 为 `<` 等）。Go 默认**不**转 `/`、**不**转非 ASCII（与 JS 一致）。需自写 key 升序递归（`json.Marshal` 对 `map` 会自动按 key 升序，但为可控建议显式递归）。处理来自 JSON 的数字用 `json.Number`（`Decoder.UseNumber()`）避免 `float64` 把大整数写成 `1e+12`。 | `strconv.FormatBool(true)=="true"` 正确；整数 `strconv.FormatInt`。`fmt.Sprint(float64)` 对大整数会出科学计数法，**勿**用浮点承载金额。 |
+| **PHP** | `json_encode(v, JSON_UNESCAPED_SLASHES \| JSON_UNESCAPED_UNICODE \| JSON_UNESCAPED_LINE_TERMINATORS)` + 自写 key 升序（PHP 关联数组需 `ksort` 递归）。默认 `json_encode` 会转 `/`、非 ASCII 与 U+2028/U+2029，**必须**同时加这三个 flag（PHP 7.1+ 内置）。`<>&` 默认不转（不要加 `JSON_HEX_*`）。 | `(string)true=="1"` ✗、`(string)false==""` ✗ → **特判** bool→`"true"/"false"`。整数 `(string)10000` 正确。 |
+| **Java** | 无内建 JSON：**自写** `stableStringify`（递归、key 升序、紧凑），字符串转义严格按上节实现（只转 `" \ \b\f\n\r\t` 与其余控制字符 `\u00XX`，**不**转 `/`、非 ASCII/U+2028/U+2029、`<>&`）。 | `String.valueOf(true)=="true"` 正确；整数用 `Long.toString`/`BigInteger.toString`。注意按值类型分派。 |
+| **Go** | **勿直接依赖 `encoding/json` 做签名字符串转义**：即使 `Encoder.SetEscapeHTML(false)` 也会强制把 U+2028/U+2029 转义成 `\u2028`/`\u2029`，与 JS `JSON.stringify` 不一致；应自写递归 `stableStringify` 与字符串转义（参照官方 Go SDK `go/stringify.go`）。处理来自 JSON 的数字用 `json.Number`（`Decoder.UseNumber()`）避免 `float64` 把大整数写成 `1e+12`。 | `strconv.FormatBool(true)=="true"` 正确；整数 `strconv.FormatInt`。`fmt.Sprint(float64)` 对大整数会出科学计数法，**勿**用浮点承载金额。 |
 
 > 通用：**HMAC 与 base 的 secret 是同一个**；输出 hex **小写**；UTF-8 编码后再算 HMAC。
 

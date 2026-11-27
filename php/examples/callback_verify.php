@@ -48,17 +48,23 @@ function handlePayCallback(string $rawBody, Config $config): array
         return ['status' => 401, 'body' => 'invalid sign'];
     }
 
+    // 若与退款回调共用同一 notify_url，先按 refund_no 分流。
+    if (!empty($payload['refund_no'])) {
+        fwrite(STDOUT, "退款回调: refund={$payload['refund_no']} status=" . ($payload['status'] ?? '') . "\n");
+        return ['status' => 200, 'body' => 'success'];
+    }
+
     $orderNo = (string) ($payload['out_order_no'] ?? $payload['order_no'] ?? '');
     $status = (string) ($payload['status'] ?? '');
 
-    // 幂等：同一订单可能被回调多次。先查本地状态，已处理过的终态直接幂等返回 success。
+    // 幂等：同一订单可能被回调多次（也可按 $payload['event_id'] 去重）。先查本地状态，已处理过的终态直接幂等返回 success。
     // if (alreadyProcessed($orderNo)) { return ack(); }
 
     switch ($status) {
         case 'success':
-            // 入账/发货等业务（必须幂等，建议带订单号唯一约束/状态机 CAS）
+            // 入账/发货等业务（代收成功回调保证 actual_amount 非空，请按实付金额入账，勿回退为 amount）
             // creditOrder($orderNo, (int) $payload['actual_amount']);
-            fwrite(STDOUT, "代收成功回调: order=$orderNo amount={$payload['amount']}\n");
+            fwrite(STDOUT, "代收成功回调: order=$orderNo actual_amount={$payload['actual_amount']}\n");
             break;
         case 'failed':
             // 标记失败
@@ -115,14 +121,19 @@ function handlePayoutCallback(string $rawBody, Config $config): array
 
 // 代收回调样例（用 pay 密钥签名）
 $payBody = [
+    'event_id' => 'evt_pay_P202501010001_success',
+    'notify_timestamp' => 1735732800,
     'merchant_no' => 'M00000001',
     'order_no' => 'P202501010001',
     'out_order_no' => '202501010001',
     'amount' => 10000,
     'actual_amount' => 10000,
+    'fee_amount' => 180,
+    'net_amount' => 9820,
     'currency' => 'PHP',
     'status' => 'success',
     'channel_order_no' => null,
+    'paid_at' => '2025-01-01T12:00:00.000Z',
 ];
 $payBody['sign'] = Signer::sign($payBody, $config->apiSecretPay);
 $payRawBody = json_encode($payBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -132,6 +143,8 @@ echo "代收回调应答: HTTP {$resp['status']} body={$resp['body']}\n";
 
 // 代付回调样例（用 payout 密钥签名）
 $payoutBody = [
+    'event_id' => 'evt_payout_W202501010001_success',
+    'notify_timestamp' => 1735733100,
     'merchant_no' => 'M00000001',
     'payout_no' => 'W202501010001',
     'out_payout_no' => 'WD202501010001',
@@ -139,6 +152,7 @@ $payoutBody = [
     'currency' => 'PHP',
     'status' => 'success',
     'channel_order_no' => null,
+    'finished_at' => '2025-01-01T12:05:00.000Z',
 ];
 $payoutBody['sign'] = Signer::sign($payoutBody, $config->apiSecretPayout);
 $payoutRawBody = json_encode($payoutBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

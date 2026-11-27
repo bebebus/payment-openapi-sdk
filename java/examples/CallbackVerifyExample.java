@@ -39,9 +39,8 @@ public class CallbackVerifyExample {
 
     public static void main(String[] args) {
         Config config = Config.builder()
-                .environment(Environment.PRODUCTION)
-                // PRODUCTION 无内置基址：正式地址请向服务商获取，必须显式提供
-                .baseUrl("https://api.<service_domain>/api/open/v1")
+                // 回调验签不发请求，SANDBOX 基址仅占位；正式环境发请求时请选 PRODUCTION 并显式传 baseUrl
+                .environment(Environment.SANDBOX)
                 .merchantNo("M00000001")
                 .apiKey("ak_demo_key")
                 .apiSecretPay(API_SECRET_PAY)
@@ -123,6 +122,8 @@ public class CallbackVerifyExample {
 
     private static Map<String, Object> payCallbackFields() {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("event_id", "evt_pay_P202501010001_success");
+        m.put("notify_timestamp", 1735732800L);
         m.put("merchant_no", "M00000001");
         m.put("order_no", "P202501010001");
         m.put("out_order_no", "202501010001");
@@ -133,21 +134,23 @@ public class CallbackVerifyExample {
         m.put("currency", "PHP");
         m.put("status", "success");
         m.put("channel_order_no", null); // 恒 null，不参与签名
-        m.put("paid_at", "2025-01-01T08:00:00+08:00");
+        m.put("paid_at", "2025-01-01T12:00:00.000Z");
         return m;
     }
 
     private static Map<String, Object> payoutCallbackFields() {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("event_id", "evt_payout_W202501010001_success");
+        m.put("notify_timestamp", 1735736400L);
         m.put("merchant_no", "M00000001");
-        m.put("payout_no", "WD202501010001");
-        m.put("out_payout_no", "OW202501010001");
+        m.put("payout_no", "W202501010001");
+        m.put("out_payout_no", "WD202501010001");
         m.put("amount", 100000L);
         m.put("currency", "PHP");
         m.put("status", "success");
         m.put("fee_amount", 500L);
         m.put("channel_order_no", null);
-        m.put("finished_at", "2025-01-01T09:00:00+08:00");
+        m.put("finished_at", "2025-01-01T13:00:00.000Z");
         return m;
     }
 

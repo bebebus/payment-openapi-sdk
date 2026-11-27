@@ -131,6 +131,27 @@ const VECTORS = [
     secret: SECRET,
     payload: { api_key: 'k', extra: {}, meta: { a: {}, b: [], c: [1] } },
   },
+  {
+    name: 'empty_string_and_nested_null',
+    desc: '空字符串与嵌套 null：顶层空字符串 "" 保留（拼为 remark=）、顶层 null 跳过，嵌套对象/数组中的 "" 与 null 均原样保留',
+    secret: SECRET,
+    payload: {
+      api_key: 'k',
+      ignored: null,
+      remark: '',
+      extra: { empty: '', keep_null: null, arr: [null, ''] },
+    },
+  },
+  {
+    name: 'unicode_line_terminators',
+    desc: 'U+2028 / U+2029 行分隔符：嵌套 JSON 必须原样 UTF-8 输出，不得转义为 \\u2028 / \\u2029（防 PHP 漏 JSON_UNESCAPED_LINE_TERMINATORS 或 Go 误用 encoding/json 导致签名分叉）',
+    secret: SECRET,
+    payload: {
+      api_key: 'k',
+      subject: 'line\u2028sep\u2029top',
+      extra: { text: 'a\u2028b\u2029c' },
+    },
+  },
 ];
 
 const vectors = VECTORS.map((v) => {
@@ -149,7 +170,7 @@ const doc = {
     filter: '排除 key==="sign"，且跳过值为 null/undefined 的字段',
     sort: 'key 按 ASCII/码点升序',
     value: '顶层标量用 String(v)（无引号）；object/array 用稳定 JSON 序列化（key 递归升序、紧凑无空格、嵌套标量用 JSON.stringify 带引号）',
-    json_escape: '嵌套 JSON 序列化须对齐 JS JSON.stringify：不转义 / ，不转义非 ASCII，不做 HTML(<>&) 转义；转义 " \\ 及控制字符(\\b\\f\\n\\r\\t 与其余 \\u00XX)',
+    json_escape: '嵌套 JSON 序列化须对齐 JS JSON.stringify：不转义 / ，不转义非 ASCII（含 U+2028/U+2029），不做 HTML(<>&) 转义；转义 " \\ 及控制字符(\\b\\f\\n\\r\\t 与其余 \\u00XX)',
     boolean: '布尔统一序列化为 true/false（顶层强转也须如此，勿用各语言默认 cast）',
     join: 'key=value 用 & 连接，末尾追加 &secret=<secret>',
     hmac: 'HMAC-SHA256(base, key=secret)，输出十六进制小写',

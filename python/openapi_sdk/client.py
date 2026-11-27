@@ -378,12 +378,14 @@ class Client:
         image_base64: Optional[str] = None,
         image_mime: Optional[str] = None,
         notify_url: Optional[str] = None,
+        out_ticket_no: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """POST /merchant/issue-ticket/create — 创建工单。notify_url 为空则不推送回复。"""
+        """POST /merchant/issue-ticket/create — 创建工单。out_ticket_no 为可选幂等号；notify_url 为空则不推送回复。"""
         return self._call_pay(
             "/merchant/issue-ticket/create",
             {
                 "order_no": order_no,
+                "out_ticket_no": out_ticket_no,
                 "content": content,
                 "image_base64": image_base64,
                 "image_mime": image_mime,

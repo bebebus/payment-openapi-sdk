@@ -6,8 +6,8 @@
 
 最新已复核基线生成于 **2026-08-22 07:06:24 UTC**：扫描提交 `59c4135af0fae7ab3ebf0eac252936d5719a99ef`，Scorecard `v5.5.0`，总分 **8.7/10**。
 
-- [OpenSSF Scorecard Viewer](https://scorecard.dev/viewer/?uri=github.com/bebebus/SDK)
-- [公开 API 结果](https://api.scorecard.dev/projects/github.com/bebebus/SDK)
+- [OpenSSF Scorecard Viewer](https://scorecard.dev/viewer/?uri=github.com/bebebus/payment-openapi-sdk)
+- [公开 API 结果](https://api.scorecard.dev/projects/github.com/bebebus/payment-openapi-sdk)
 
 这份报告衡量的是仓库的开源供应链安全实践，不是人工代码审计、渗透测试或合规认证。每项修复都必须通过新的 Scorecard、CI、CodeQL 和 GitHub 告警状态复核，不能只以总分作为验收依据。
 

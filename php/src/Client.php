@@ -220,9 +220,9 @@ final class Client
 
     /**
      * 创建工单 POST /merchant/issue-ticket/create（密钥 api_secret_pay）。
-     * order_no 必填；content、image_base64、image_mime、notify_url 可选。
+     * order_no 必填；out_ticket_no（可选幂等号）、content、image_base64、image_mime、notify_url 可选。
      *
-     * @param array{order_no:string, content?:string|null, image_base64?:string|null, image_mime?:string|null, notify_url?:string|null} $params
+     * @param array{order_no:string, out_ticket_no?:string|null, content?:string|null, image_base64?:string|null, image_mime?:string|null, notify_url?:string|null} $params
      * @return array<string,mixed> data
      */
     public function issueTicketCreate(array $params): array
@@ -380,7 +380,10 @@ final class Client
      */
     private function encodeBody(array $payload, ?string $requestSign = null): string
     {
-        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $json = json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS
+        );
         if ($json === false) {
             throw new TransportException(
                 '请求体 JSON 编码失败: ' . json_last_error_msg(),

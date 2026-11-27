@@ -8,8 +8,8 @@
 
 SDK 已加入 OpenSSF Scorecard 工作流，扫描 `bebebus/payment-openapi-sdk` 的仓库安全实践，并将结果发布到 Scorecard 公共结果服务和 GitHub Code Scanning。
 
-- 最新结果：[OpenSSF Scorecard report](https://scorecard.dev/viewer/?uri=github.com/bebebus/SDK)
-- 公共结果 API：[Scorecard API](https://api.scorecard.dev/projects/github.com/bebebus/SDK)
+- 最新结果：[OpenSSF Scorecard report](https://scorecard.dev/viewer/?uri=github.com/bebebus/payment-openapi-sdk)
+- 公共结果 API：[Scorecard API](https://api.scorecard.dev/projects/github.com/bebebus/payment-openapi-sdk)
 - 仓库工作流：[`.github/workflows/scorecard-analysis.yml`](./.github/workflows/scorecard-analysis.yml)
 - 评估规则：[Scorecard checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md)
 - 结果来源项目：[OpenSSF Scorecard](https://github.com/ossf/scorecard)

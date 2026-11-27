@@ -715,9 +715,9 @@ checkTrue('[E] 仅配 paySecret 验代付回调抛 InvalidArgumentException', $m
 
 $errorCodesAppendix = require __DIR__ . '/../appendix/error-codes.php';
 checkTrue('[appendix] error-codes.php 返回数组含 errors', is_array($errorCodesAppendix) && isset($errorCodesAppendix['errors']) && is_array($errorCodesAppendix['errors']));
-check('[appendix] error-codes.php 共 29 个错误码', 29, count($errorCodesAppendix['errors']));
+check('[appendix] error-codes.php 共 31 个错误码', 31, count($errorCodesAppendix['errors']));
 $errorCodeSet = array_column($errorCodesAppendix['errors'], 'code');
-foreach (['100107', '100108', '300302', '300304', '300308', '300309'] as $expectedCode) {
+foreach (['100107', '100108', '300302', '300304', '300308', '300309', '300415', '300416'] as $expectedCode) {
     checkTrue("[appendix] error-codes 含 {$expectedCode}", in_array($expectedCode, $errorCodeSet, true));
 }
 foreach (['200002', '210002'] as $removedCode) {

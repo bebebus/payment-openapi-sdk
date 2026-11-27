@@ -281,7 +281,7 @@ export class Client {
 
   // ---- 工单（密钥：api_secret_pay）----
 
-  // 创建工单。params: { order_no, content?, image_base64?, image_mime?, notify_url? }
+  // 创建工单。params: { order_no, out_ticket_no?, content?, image_base64?, image_mime?, notify_url? }
   issueTicketCreate(params) {
     return this._post('/merchant/issue-ticket/create', params, 'pay');
   }

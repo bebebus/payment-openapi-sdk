@@ -6,8 +6,8 @@
       "retryable": "depends",
       "meaning_zh": "通用业务失败 / 鉴权失败统一码",
       "meaning_en": "Generic business failure / unified auth-failure code",
-      "note_zh": "订单未被受理时已实时置 failed，勿用同 out_order_no 重试；鉴权阶段（凭据无效/禁用、商户或上级代理禁用等）统一收敛为本码与「认证失败」话术以防枚举",
-      "note_en": "When the order is not accepted, it is set to failed in real time — do not retry with the same out_order_no; during auth (invalid/disabled credential, disabled merchant or agent, etc.), errors are unified into this code and a generic \"Authentication failed\" message to prevent enumeration"
+      "note_zh": "鉴权阶段（凭据无效/禁用、商户或上级代理禁用等）统一收敛为本码与「认证失败」话术以防枚举；其他未归类业务失败亦可能返回本码（代收上游建单失败已独立为 300415），请结合 message 排查，下单类结果未知时先查单确认",
+      "note_en": "Auth failures (invalid/disabled credential, disabled merchant or agent, etc.) are unified into this code with a generic \"Authentication failed\" message to prevent enumeration; other unclassified business failures may also return this code (collection upstream creation rejection now uses 300415). Check message and confirm order status via query before retrying"
     },
     {
       "code": "100001",
@@ -15,8 +15,8 @@
       "retryable": "no",
       "meaning_zh": "参数校验失败",
       "meaning_en": "Parameter validation failed",
-      "note_zh": "message 为具体字段校验错误信息（英文，如 `\"amount\" must be a number`）；amount 必须为 JSON 整数，字符串/小数均返回此码。修正参数后重发",
-      "note_en": "message carries the specific field validation error (in English, e.g. `\"amount\" must be a number`); amount must be a JSON integer — strings/decimals return this code. Fix params and resend"
+      "note_zh": "message 为具体字段校验错误信息；amount 必须为 JSON 整数且符合该币种单笔范围与小数精度步长（如 PHP/CNY 最多 2 位小数即 100 整数倍，VND/IDR 仅整数主单位即 10000 整数倍），字符串/小数/超精度均返回此码。修正参数后重发",
+      "note_en": "message carries the specific field validation error; amount must be a JSON integer within the currency range and decimal precision step (e.g. PHP/CNY at most 2 decimals = multiple of 100, VND/IDR whole units = multiple of 10000) — strings, floats, or excess decimals return this code. Fix params and resend"
     },
     {
       "code": "100101",
@@ -150,8 +150,8 @@
       "retryable": "yes",
       "meaning_zh": "建单暂不可用（订单未创建，可用同一外部单号重试）",
       "meaning_en": "Order create temporarily unavailable (nothing persisted; retry with the same merchant order no.)",
-      "note_zh": "insert-first 并发冲突重试耗尽或风控版本分片缺失，均在 INSERT 之前 fail-closed；HTTP 503。请用同一 out_order_no / out_payout_no 稍后重试，勿换单号以免双单",
-      "note_en": "insert-first retry budget exhausted or risk-config version shard missing — fail-closed before INSERT; HTTP 503. Retry later with the same out_order_no / out_payout_no; do not change the number or you may create a duplicate"
+      "note_zh": "系统高并发建单锁争用或规则暂未就绪，订单未落库；HTTP 503。请用同一 out_order_no / out_payout_no 稍后重试，勿换单号以免产生重复单",
+      "note_en": "Temporary order-creation contention or rule initialization delay; nothing was persisted (HTTP 503). Retry later with the same out_order_no / out_payout_no — do not change the number or you may create a duplicate"
     },
     {
       "code": "300401",
@@ -237,11 +237,11 @@
     {
       "code": "300410",
       "http": 200,
-      "retryable": "yes",
+      "retryable": "depends",
       "meaning_zh": "代付收据暂不可用（订单非 success）",
       "meaning_en": "Payout receipt temporarily unavailable (order not success)",
-      "note_zh": "等订单出款成功后再试",
-      "note_en": "Retry after the payout succeeds"
+      "note_zh": "仅 status=success 的正式代付单支持收据。订单仍在处理中（pending）时可待成功后重试；订单已失败（failed）为终态请勿重试。测试环境统一返回不可重试的 300416",
+      "note_en": "Only live payouts with status=success have receipts. Retry only while the order is pending; do not retry once failed. Test credentials return non-retryable 300416"
     },
     {
       "code": "300411",
@@ -251,6 +251,24 @@
       "meaning_en": "Receipt generation failed",
       "note_zh": "渲染异常；稍后重试",
       "note_en": "Rendering error; retry later"
+    },
+    {
+      "code": "300415",
+      "http": 200,
+      "retryable": "no",
+      "meaning_zh": "代收上游建单失败（订单已置 failed）",
+      "meaning_en": "Collection upstream creation failed (order set to failed)",
+      "note_zh": "订单已被平台落库并实时置为 failed，原 out_order_no 已占用；勿用同一 out_order_no 重试，请更换新 out_order_no 后重新下单",
+      "note_en": "The order was persisted and immediately marked failed, occupying out_order_no; do not retry with the same out_order_no — generate a new out_order_no to re-submit"
+    },
+    {
+      "code": "300416",
+      "http": 200,
+      "retryable": "no",
+      "meaning_zh": "当前环境或支付方式不支持代付收据查询",
+      "meaning_en": "Payout receipt query is not supported in this environment or payment method",
+      "note_zh": "例如使用测试环境密钥（env=test）查询收据时恒返回本码（与凭证接口 300408 对齐）；不可重试，请勿轮询",
+      "note_en": "For example, calling payout/receipt/query with test credentials (env=test) always returns this code (aligned with 300408 for proof); non-retryable — do not poll"
     },
     {
       "code": "300501",

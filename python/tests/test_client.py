@@ -254,6 +254,7 @@ class TestKeySelectionAndShaping(unittest.TestCase):
         client = _make_client()
         client.issue_ticket_create(
             order_no="P1",
+            out_ticket_no="TKT_IDEM_001",
             content="用户已付款",
             image_base64="AAAA",
             image_mime="image/png",
@@ -263,6 +264,7 @@ class TestKeySelectionAndShaping(unittest.TestCase):
         self.assertEqual(create_call["path"], "/merchant/issue-ticket/create")
         self.assertEqual(create_call["secret"], "sk_pay_secret")
         self.assertEqual(create_call["body"]["order_no"], "P1")
+        self.assertEqual(create_call["body"]["out_ticket_no"], "TKT_IDEM_001")
         self.assertEqual(create_call["body"]["notify_url"], "https://m.example.com/ticket-cb")
 
         client.issue_ticket_query(ticket_no="TK1")

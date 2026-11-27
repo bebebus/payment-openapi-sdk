@@ -166,7 +166,7 @@ public final class Client {
     // 工单（密钥：api_secret_pay）
     // ============================================================
 
-    /** 创建工单 POST /merchant/issue-ticket/create。params: order_no 必填，notify_url 可选。 */
+    /** 创建工单 POST /merchant/issue-ticket/create。params: order_no 必填，out_ticket_no/content/image_base64/image_mime/notify_url 可选。 */
     public ApiResponse issueTicketCreate(Map<String, Object> params) {
         return call("/merchant/issue-ticket/create", params, Secret.PAY);
     }

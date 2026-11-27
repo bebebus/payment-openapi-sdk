@@ -6,8 +6,8 @@ The original baseline was generated at **2026-07-11 07:23 UTC** for commit `b23e
 
 The latest verified baseline was generated at **2026-08-22 07:06:24 UTC** for commit `59c4135af0fae7ab3ebf0eac252936d5719a99ef` with Scorecard `v5.5.0`; it scores **8.7/10**.
 
-- [OpenSSF Scorecard Viewer](https://scorecard.dev/viewer/?uri=github.com/bebebus/SDK)
-- [Public API result](https://api.scorecard.dev/projects/github.com/bebebus/SDK)
+- [OpenSSF Scorecard Viewer](https://scorecard.dev/viewer/?uri=github.com/bebebus/payment-openapi-sdk)
+- [Public API result](https://api.scorecard.dev/projects/github.com/bebebus/payment-openapi-sdk)
 
 Scorecard measures open-source supply-chain security practices. It is not a manual code audit, penetration test, or compliance certification. Every remediation must be verified through a new Scorecard result, CI, CodeQL, and GitHub alert state rather than the aggregate score alone.
 
