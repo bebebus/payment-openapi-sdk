@@ -420,6 +420,27 @@ final class Client
     }
 
     /**
+     * 构造出站 HTTP 请求头列表。
+     *
+     * @return list<string>
+     */
+    private function buildHttpHeaders(): array
+    {
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
+            // 版本号从 self::VERSION 单一派生。
+            'User-Agent: merchant-openapi-sdk-php/' . self::VERSION,
+        ];
+        if ($this->config->lang !== null) {
+            $headers[] = 'X-Lang: ' . $this->config->lang;
+        }
+
+        return $headers;
+    }
+
+    /**
      * 默认 HTTP 执行器：cURL（核心扩展，非第三方）。
      *
      * @return array{status:int,body:string}
@@ -436,13 +457,7 @@ final class Client
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $json,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
-                // 版本号从 self::VERSION 单一派生。
-                'User-Agent: merchant-openapi-sdk-php/' . self::VERSION,
-            ],
+            CURLOPT_HTTPHEADER => $this->buildHttpHeaders(),
             CURLOPT_TIMEOUT => $timeoutSeconds,
             CURLOPT_CONNECTTIMEOUT => $timeoutSeconds,
             // —— 传输安全钉死 ——

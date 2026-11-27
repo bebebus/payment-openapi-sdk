@@ -33,6 +33,9 @@ var ErrBaseURLRequired = errors.New("baseUrl is required: obtain the production 
 // ErrInsecureBaseURL 表示非本地的 baseUrl 用了非 https（明文传输密钥/签名，拒绝）。
 var ErrInsecureBaseURL = errors.New("baseUrl must use https:// for non-local hosts (refuse to transmit credentials over plaintext)")
 
+// ErrInvalidLang 表示 Config.Lang 包含非法的回车/换行字符。
+var ErrInvalidLang = errors.New("lang must not contain CR or LF")
+
 // BaseURL 返回环境对应的预设基址。Production 无内置基址，返回空串。
 func (e Environment) BaseURL() string {
 	switch e {
@@ -61,6 +64,21 @@ type Config struct {
 
 	// Timeout HTTP 请求超时，默认 30s。
 	Timeout time.Duration
+
+	// Lang 可选响应语言（通过 X-Lang 请求头传递，如 "en-US"；为空时不发送，由服务端默认返回中文）。
+	Lang string
+}
+
+// resolveLang 归一化可选响应语言，拒绝含 CR/LF 的非法值。
+func (c Config) resolveLang() (string, error) {
+	trimmed := strings.TrimSpace(c.Lang)
+	if trimmed == "" {
+		return "", nil
+	}
+	if strings.ContainsAny(trimmed, "\r\n") {
+		return "", fmt.Errorf("%w: %q", ErrInvalidLang, c.Lang)
+	}
+	return trimmed, nil
 }
 
 // resolveBaseURL 决定最终基址：BaseURL 非空优先，否则取 Environment 预设。

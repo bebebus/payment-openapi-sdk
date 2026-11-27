@@ -21,7 +21,7 @@ function startStub(handler) {
       req.on('data', (c) => chunks.push(c));
       req.on('end', () => {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const envelope = handler(req.url, body, res);
+        const envelope = handler(req.url, body, res, req.headers);
         if (res.writableEnded) return;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(envelope ?? { code: 0, message: 'ok', data: {} }));
@@ -536,4 +536,42 @@ test('纯空白密钥调用 verifyPayCallback / payCreate 抛 TypeError', async 
   );
   assert.throws(() => client.verifyPayCallback({ sign: 'a'.repeat(64) }), TypeError);
   await assert.rejects(() => client.payCreate({ out_order_no: 'x', amount: 1 }), TypeError);
+});
+
+test('Config.lang：发送 X-Lang 请求头、空白忽略、非法类型或 CRLF 抛 TypeError', async () => {
+  assert.throws(
+    () => new Config({ merchantNo: 'M', apiKey: 'k', environment: Environment.SANDBOX, lang: 123 }),
+    TypeError,
+  );
+  assert.throws(
+    () => new Config({ merchantNo: 'M', apiKey: 'k', environment: Environment.SANDBOX, lang: 'en-US\r\nX-Bad: 1' }),
+    TypeError,
+  );
+  const blankCfg = new Config({ merchantNo: 'M', apiKey: 'k', environment: Environment.SANDBOX, lang: '   ' });
+  assert.equal(blankCfg.lang, null);
+
+  let capturedHeaders = null;
+  const { server, baseUrl } = await startStub((_url, _body, _res, headers) => {
+    capturedHeaders = headers;
+    return { code: 0, message: 'ok', data: {} };
+  });
+  try {
+    const defaultClient = makeClient(baseUrl);
+    await defaultClient.balanceQuery({});
+    assert.equal(capturedHeaders['x-lang'], undefined);
+
+    const enClient = new Client(
+      new Config({
+        merchantNo: 'M00000001',
+        apiKey: 'ak_demo_key',
+        apiSecretPay: SECRET_PAY,
+        baseUrl,
+        lang: ' en-US ',
+      }),
+    );
+    await enClient.balanceQuery({});
+    assert.equal(capturedHeaders['x-lang'], 'en-US');
+  } finally {
+    server.close();
+  }
 });

@@ -27,6 +27,8 @@ Every request body contains the following common fields (at the same level as bu
 
 **Key selection**: `pay/*`, `pay-methods/query`, `countries/query`, `balance/query`, and `issue-ticket/*` use `api_secret_pay` (even when a ticket is for a payout order); `payout/*` uses `api_secret_payout`.
 
+**Response language & version headers (optional)**: All endpoints support `X-Lang` (higher priority) or `Accept-Language` to choose the error message language (send `en-US` / `en` for English; defaults to Chinese `zh-CN` when omitted). All five SDKs support an optional `lang` option on `Config` (Node.js `lang`, Python `lang`, PHP `$lang`, Go `Lang`, Java `.lang(...)`), automatically sending `X-Lang` as an HTTP header when non-empty (not added to the JSON body or signature). Every `/api/open/*` response includes an `X-Api-Version` header.
+
 **Unified response envelope** (most business failures return HTTP 200; a few retryable system/rate-limit errors return non-2xx with a business envelope, such as `300304` on HTTP 503, `300302` on HTTP 500, and `100108` on HTTP 429):
 ```json
 { "code": 0, "message": "ok", "data": { /* business data; on failure there may be no data or it may contain missing_fields, etc. */ } }
@@ -53,7 +55,7 @@ Request (common fields +):
 | `subject` | string | No | Order subject |
 | `remark` | string | No | Remark |
 | `client_ip` | string | No | End-user IP |
-| `extra` | object | No | Extension, participates in signing; may include `customer`: `{first_name,last_name,name,email,phone}` |
+| `extra` | object | No | Extension, participates in signing; may include `customer`: `{first_name,last_name,name,email,phone}` (`extra.customer` subfields and known top-level keys `extra.name/email/phone/bank_branch/bank_province/bank_city` reject `""` or `null` with `100001`) |
 
 Response `data`: `order_no, out_order_no, amount(int), currency, pay_url(nullable, H5 payment link — open directly when non-empty), qrcode_content(nullable, raw QR payload — render as a QR code as-is without wrapping in another link), pay_params(nullable, App wake link such as gcash://xxxxxx — launch directly without re-encoding or passing to an SDK), expire_at(nullable ISO8601), status(pending|success|failed)`. On synchronous `code=0`, at least one of the three payment entries is non-empty and the others are `null`; opening/launching is not confirmation of credit — rely on order query or callback `success`.
 
@@ -96,11 +98,11 @@ Request (common fields +):
 | `notify_url` | string | Yes | Callback address |
 | `account_no` | string | Yes | Payee account/address (card number/wallet address, etc.) |
 | `account_name` | string | No | Payee name (may be empty for on-chain address types) |
-| `bank_code` | string | No | **Required** for bank types, taken from the `code` in banks/query; not needed for wallet types (gcash) |
+| `bank_code` | string | No | **Required** when the matched channel declares a bank list (from `code` in banks/query; missing returns `300406`, invalid returns `300407`); channels without a bank list do not enforce it, though bank-type payouts should still query banks/query and pass a valid `code` |
 | `bank_name` | string | No | Bank name (the system backfills by bank_code, usually no need to pass) |
 | `remark` | string | No | Remark |
 | `client_ip` | string | No | End-user IP |
-| `extra` | object | No | Extension, participates in signing; `customer` is the same as for collection (for payout the top-level `account_name` already serves as the customer name, so usually only email/phone need to be supplemented) |
+| `extra` | object | No | Extension, participates in signing; `customer` is the same as for collection (for payout the top-level `account_name` already serves as the customer name, so usually only email/phone need to be supplemented; `extra.customer` subfields and known top-level keys `extra.name/email/phone/bank_branch/bank_province/bank_city` reject `""` or `null` with `100001`) |
 
 Response `data`: `payout_no, out_payout_no, amount, currency, status, review_status(nullable), fee_amount(nullable), freeze_amount(nullable)`.
 > Successful creation = accepted and balance frozen; the final result is determined by the asynchronous callback and order query.
@@ -110,7 +112,7 @@ Request: `payout_no` or `out_payout_no` (either one).
 Response `data`: `payout_no, out_payout_no, amount, currency, status, sub_state(in-progress sub-state accepted|reviewing|processing|verifying, null in a terminal state), channel_order_no(always null; use payout_no or out_payout_no for order queries and correlation), finished_at(nullable), failed_reason(nullable), notify_status`.
 
 ### POST `/merchant/payout/banks/query` — available banks (key: payout)
-Request: `pay_method`(required, usually `bank` when querying banks) + `country`(country ISO code such as `PH`; documented as required) + `currency`(currency code such as `PHP`; documented as required).
+Request: `pay_method`(required, usually `bank` when querying banks) + `country`(optional but recommended, country ISO code such as `PH`) + `currency`(optional but recommended, currency code such as `PHP`; omitting matches only unbound groups and usually returns an empty array).
 Response `data.banks[]`: `{code, name}` (empty array for wallet types or payment methods with no available bank). Use this `code` as `bank_code` when creating the payout.
 
 ### POST `/merchant/payout/proof/query` — payout proof query (key: payout)
@@ -125,11 +127,11 @@ Response: `inline=0`/omitted → `{payout_no, out_payout_no, lang, receipt_url, 
 Errors: `300410` (order is not in `success` state, or test credentials not supported) / `300411` (receipt generation failed).
 
 ### POST `/merchant/payout/test/complete` — complete a payout test order (key: payout, **test key only**)
-Request: `payout_no` or `out_payout_no` (either one) + `result`(`success`|`failed`, required). Response `data`: `{ ok(bool), payout_no, status(success|failed) }`.
+Request: `payout_no` or `out_payout_no` (either one) + `result`(`success`|`failed`, required). Response `data`: `{ ok(bool), payout_no, status(success|failed) }`. When payout precheck is enabled, calling before the merchant endpoint returns `approve` fails with `100001`.
 
 ### Payout precheck (the merchant's own endpoint)
 
-During review the platform POSTs JSON to the merchant's public HTTPS URL. This is not a platform endpoint and not the final callback. The SDK does not send this request. Call the helper inside the merchant endpoint and write its return value as the entire HTTP 200 body.
+During review the platform POSTs JSON to the merchant's public HTTPS URL (with header `User-Agent: project-p-payout-precheck`). This is not a platform endpoint and not the final callback. The SDK does not send this request. Call the helper inside the merchant endpoint and write its return value as the entire HTTP 200 body.
 
 The body must be exactly these four non-empty strings:
 
@@ -201,7 +203,7 @@ Request (common fields +):
 
 | Field | Type | Required | Description |
 |------|------|------|------|
-| `order_no` | string | Yes | Platform order number or merchant order number |
+| `order_no` | string | Yes | Platform order number or merchant order number (if a merchant's collection `out_order_no` and payout `out_payout_no` collide, collection is matched first — prefer the platform number `P/TP` or `W/TW`) |
 | `content` | string | No | Ticket text (≤ 1000 chars; a ticket is still created when both content and image are empty, with a default placeholder note) |
 | `image_base64` | string | No | Raw Base64 screenshot (participates in signing; no `data:` prefix; ≤ 7,000,000 chars, decoded size ≤ 5MB, total request body limit 8MB); provide together with `image_mime`, or omit both |
 | `image_mime` | string | No | Only `image/jpeg`, `image/png`, `image/webp` |
@@ -211,6 +213,6 @@ Response `data`: `ticket_no, order_no, out_order_no(nullable), order_type(pay|pa
 Common errors: `100001` (invalid params/image/notify_url) / `300301` (order not found) / `300309` (order status does not accept a ticket).
 
 ### POST `/merchant/issue-ticket/query` — query a ticket (key: pay)
-Request: `ticket_no` or `order_no` (**provide at least one**; when only `order_no` is given, the latest ticket for that order is returned).
+Request: `ticket_no` or `order_no` (**provide at least one**; when only `order_no` is given, the latest ticket for that order is returned; if a merchant external number collides across collection and payout, collection is matched first — prefer the platform number or `ticket_no`).
 Response `data`: `ticket_no, order_type(pay|payout), order_no, out_order_no(nullable), status(open|forwarded|replied|forward_failed|closed), content(nullable), has_photo(bool), created_at(nullable ISO8601), replied_at(nullable ISO8601), replies[](at most 100 items, each with content/original_content/has_photo/has_attachment/created_at), replies_truncated(bool)`. Screenshot bytes and `forward_error` are not returned.
 Common errors: `300308` (ticket not found; also returned when both `ticket_no` and `order_no` are given but do not refer to the same ticket).

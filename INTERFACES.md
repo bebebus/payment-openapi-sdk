@@ -27,6 +27,8 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 
 **密钥选择**：`pay/*`、`pay-methods/query`、`countries/query`、`balance/query`、`issue-ticket/*` 用 `api_secret_pay`（即使工单对应的是代付单，仍用 `api_secret_pay`）；`payout/*` 用 `api_secret_payout`。
 
+**响应语言与版本头（可选）**：所有接口支持通过请求头 `X-Lang`（优先）或 `Accept-Language` 指定错误消息语言（传 `en-US` / `en` 返回英文，不传默认中文 `zh-CN`）。五套 SDK 均可在 `Config` 中配置可选 `lang`（Node.js `lang`、Python `lang`、PHP `$lang`、Go `Lang`、Java `.lang(...)`），非空时自动附带 `X-Lang` 请求头（不进入请求体，不参与签名）。所有 `/api/open/*` 响应均附带 `X-Api-Version` 版本头。
+
 **统一响应信封**（多数业务失败返回 HTTP 200，少数可重试系统/限流错误返回非 2xx + 业务信封，如 `300304` 为 HTTP 503、`300302` 为 HTTP 500、`100108` 为 HTTP 429）：
 ```json
 { "code": 0, "message": "ok", "data": { /* 业务数据；失败时可能无 data 或含 missing_fields 等 */ } }
@@ -53,7 +55,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 | `subject` | string | 否 | 订单标题 |
 | `remark` | string | 否 | 备注 |
 | `client_ip` | string | 否 | 终端用户 IP |
-| `extra` | object | 否 | 扩展，参与签名；可含 `customer`：`{first_name,last_name,name,email,phone}` |
+| `extra` | object | 否 | 扩展，参与签名；可含 `customer`：`{first_name,last_name,name,email,phone}`（`extra.customer` 子字段及顶层已知键 `extra.name/email/phone/bank_branch/bank_province/bank_city` 均不可为空串 `""` 或 `null`，否则返回 `100001`） |
 
 响应 `data`：`order_no, out_order_no, amount(int), currency, pay_url(可空，H5 支付链接，非空时直接打开), qrcode_content(可空，二维码原串，非空时原样生成二维码，勿再包链接), pay_params(可空，App 唤醒链接如 gcash://xxxxxx，非空时直接唤起，勿再编码或交给 SDK), expire_at(可空 ISO8601), status(pending|success|failed)`。同步下单 `code=0` 时三项支付入口至少一项非空，其余为 `null`；唤起/打开不等于已入账，仍以查单或回调 `success` 为准。
 
@@ -96,11 +98,11 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 | `notify_url` | string | 是 | 回调地址 |
 | `account_no` | string | 是 | 收款账号/地址（卡号/钱包地址等） |
 | `account_name` | string | 否 | 收款人姓名（链上地址类可空） |
-| `bank_code` | string | 否 | 银行类**必填**，取 banks/query 的 `code`；钱包类（gcash）不需要 |
+| `bank_code` | string | 否 | 当所选渠道声明了可用银行列表时**必填**（取 banks/query 的 `code`，缺失返回 `300406`，无效返回 `300407`）；未声明银行列表的渠道不校验，但银行类代付仍建议先查 banks/query 并传合法 `code` |
 | `bank_name` | string | 否 | 银行名（系统按 bank_code 回填，一般无需传） |
 | `remark` | string | 否 | 备注 |
 | `client_ip` | string | 否 | 终端用户 IP |
-| `extra` | object | 否 | 扩展，参与签名；`customer` 同代收（代付顶层 `account_name` 已作客户名，通常仅补 email/phone） |
+| `extra` | object | 否 | 扩展，参与签名；`customer` 同代收（代付顶层 `account_name` 已作客户名，通常仅补 email/phone；`extra.customer` 子字段及顶层已知键 `extra.name/email/phone/bank_branch/bank_province/bank_city` 均不可为空串 `""` 或 `null`，否则返回 `100001`） |
 
 响应 `data`：`payout_no, out_payout_no, amount, currency, status, review_status(可空), fee_amount(可空), freeze_amount(可空)`。
 > 创建成功=已受理并冻结余额，最终结果以异步回调与查单为准。
@@ -110,7 +112,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 响应 `data`：`payout_no, out_payout_no, amount, currency, status, sub_state(处理中子态 accepted|reviewing|processing|verifying，终态为 null), channel_order_no(始终为 null；订单查询和业务关联请使用 payout_no 或 out_payout_no), finished_at(可空), failed_reason(可空), notify_status`。
 
 ### POST `/merchant/payout/banks/query` — 可用银行（密钥：payout）
-请求：`pay_method`(必填，查询可用银行通常传 `bank`) + `country`(国家 ISO 码，如 `PH`；文档要求必填) + `currency`(币种码，如 `PHP`；文档要求必填)。
+请求：`pay_method`(必填，查询可用银行通常传 `bank`) + `country`(可选但建议提供，国家 ISO 码如 `PH`) + `currency`(可选但建议提供，币种码如 `PHP`；省略时仅匹配未绑定国家/币种的分组，通常返回空数组)。
 响应 `data.banks[]`：`{code, name}`（钱包类或当前没有可用银行的支付方式为空数组）。下单 `bank_code` 取此 `code`。
 
 ### POST `/merchant/payout/proof/query` — 代付凭证查询（密钥：payout）
@@ -125,11 +127,11 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 错误：`300410`(订单非 `success` 状态或测试密钥不支持收据) / `300411`(收据生成失败)。
 
 ### POST `/merchant/payout/test/complete` — 代付测试单完成（密钥：payout，**仅测试密钥**）
-请求：`payout_no` 或 `out_payout_no`（二选一）+ `result`(`success`|`failed`, 必填)。响应 `data`：`{ ok(bool), payout_no, status(success|failed) }`。
+请求：`payout_no` 或 `out_payout_no`（二选一）+ `result`(`success`|`failed`, 必填)。响应 `data`：`{ ok(bool), payout_no, status(success|failed) }`。启用代付反查时，在商户反查接口返回 `approve` 前调用将返回 `100001`。
 
 ### 代付订单反查（商户自己的接口）
 
-平台在审核阶段向商户配置的公网 HTTPS 地址 POST JSON。这不是平台端点，也不是终态回调，SDK 不代替商户发这个请求。商户在自己的接口里调用判定助手，把返回值原样作为 HTTP 200 的响应体。
+平台在审核阶段向商户配置的公网 HTTPS 地址 POST JSON（请求头附带 `User-Agent: project-p-payout-precheck`）。这不是平台端点，也不是终态回调，SDK 不代替商户发这个请求。商户在自己的接口里调用判定助手，把返回值原样作为 HTTP 200 的响应体。
 
 请求体必须恰好是这四个非空字符串：
 
@@ -201,7 +203,7 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `order_no` | string | 是 | 平台订单号或商户订单号 |
+| `order_no` | string | 是 | 平台订单号或商户订单号（若商户代收 `out_order_no` 与代付 `out_payout_no` 重号，系统优先匹配代收单，建议传平台单号 `P/TP`/`W/TW` 避免歧义） |
 | `content` | string | 否 | 工单说明（≤ 1000 字符；与截图都空也会建单并落默认占位文案） |
 | `image_base64` | string | 否 | 截图原始 Base64（参与签名，勿加 `data:` 前缀，≤ 7,000,000 字符、解码后 ≤ 5MB，整条请求体上限 8MB）；与 `image_mime` 同时提供或同时省略 |
 | `image_mime` | string | 否 | 仅 `image/jpeg`、`image/png`、`image/webp` |
@@ -211,6 +213,6 @@ SDK 设计：`Environment.SANDBOX` 内置本地预设基址；`Environment.PRODU
 常见错误：`100001`（参数/截图/回调地址非法）/ `300301`（订单不存在）/ `300309`（当前订单状态不接受工单）。
 
 ### POST `/merchant/issue-ticket/query` — 查询工单（密钥：pay）
-请求：`ticket_no` 或 `order_no`（**至少填一个**；只填 `order_no` 时返回该订单最新一张工单）。
+请求：`ticket_no` 或 `order_no`（**至少填一个**；只填 `order_no` 时返回该订单最新一张工单；若商户外部单号在代收/代付间重号，系统优先匹配代收单，建议传平台单号或 `ticket_no`）。
 响应 `data`：`ticket_no, order_type(pay|payout), order_no, out_order_no(可空), status(open|forwarded|replied|forward_failed|closed), content(可空), has_photo(bool), created_at(可空 ISO8601), replied_at(可空 ISO8601), replies[](最多 100 条，每条含 content/original_content/has_photo/has_attachment/created_at), replies_truncated(bool)`。不返回截图字节与 `forward_error`。
 常见错误：`300308`（工单不存在；同时传 `ticket_no` 与 `order_no` 但不匹配同一工单时亦返回此码）。

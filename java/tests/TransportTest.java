@@ -19,9 +19,11 @@ public final class TransportTest {
         AtomicInteger status = new AtomicInteger(200);
         AtomicReference<String> captured = new AtomicReference<>();
         AtomicReference<String> path = new AtomicReference<>();
+        AtomicReference<String> capturedLang = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             path.set(exchange.getRequestURI().getPath());
+            capturedLang.set(exchange.getRequestHeaders().getFirst("X-Lang"));
             captured.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] bytes = response.get().getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.get(), bytes.length);
@@ -35,6 +37,22 @@ public final class TransportTest {
             Client client = new Client(config);
             ApiResponse result = client.payQuery(Map.of("out_order_no", "merchant-order"));
             check(result.isSuccess() && "P1".equals(result.dataAsMap().get("order_no")), "成功响应");
+            check(capturedLang.get() == null, "默认不发送 X-Lang 头");
+            Config enConfig = Config.builder().baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                    .merchantNo("M1").apiKey("key").apiSecretPay("pay-secret").lang(" en-US ").build();
+            new Client(enConfig).balanceQuery(Map.of());
+            check("en-US".equals(capturedLang.get()), "配置 lang 后发送 X-Lang: en-US");
+            Config blankLangCfg = Config.builder().baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                    .merchantNo("M1").apiKey("key").apiSecretPay("pay-secret").lang("   ").build();
+            check(blankLangCfg.lang() == null, "空白 lang 归一为 null");
+            try {
+                Config.builder().baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                        .merchantNo("M1").apiKey("key").lang("en-US\r\nX-Bad: 1").build();
+                throw new AssertionError("含 CRLF 的 lang 应抛异常");
+            } catch (IllegalArgumentException expected) {
+                // expected
+            }
+            result = client.payQuery(Map.of("out_order_no", "merchant-order"));
             check("/merchant/pay/query".equals(path.get()), "请求路径");
             @SuppressWarnings("unchecked")
             Map<String, Object> payload = (Map<String, Object>) Json.parse(captured.get());

@@ -799,6 +799,28 @@ foreach (['account_no', 'out_payout_no', 'original_sign'] as $key) {
     check("precheck 不匹配 $key", PayoutPrecheck::REJECT, PayoutPrecheck::decide($different, $precheckSaved));
 }
 
+/* ---------------------------- X-Lang 响应语言头 ---------------------------- */
+
+$cfgLangDefault = new Config('M', 'k', 'p', 'q', Environment::SANDBOX);
+check('Config lang 默认为 null', null, $cfgLangDefault->lang);
+$cfgLangBlank = new Config('M', 'k', 'p', 'q', Environment::SANDBOX, null, 30, '   ');
+check('Config lang 空白归一为 null', null, $cfgLangBlank->lang);
+$cfgLangEn = new Config('M', 'k', 'p', 'q', Environment::SANDBOX, null, 30, ' en-US ');
+check('Config lang 去除首尾空白', 'en-US', $cfgLangEn->lang);
+$langCrlfThrew = false;
+try {
+    new Config('M', 'k', 'p', 'q', Environment::SANDBOX, null, 30, "en-US\r\nX-Bad: 1");
+} catch (\InvalidArgumentException $e) {
+    $langCrlfThrew = true;
+}
+checkTrue('Config lang 含 CRLF 抛 InvalidArgumentException', $langCrlfThrew);
+
+$headerMethod = new \ReflectionMethod(Client::class, 'buildHttpHeaders');
+$defaultHeaders = $headerMethod->invoke(new Client($cfgLangDefault));
+checkFalse('默认请求头不含 X-Lang', in_array('X-Lang: en-US', $defaultHeaders, true));
+$enHeaders = $headerMethod->invoke(new Client($cfgLangEn));
+checkTrue('配置 lang 后请求头含 X-Lang: en-US', in_array('X-Lang: en-US', $enHeaders, true));
+
 /* ---------------------------- 汇总 ---------------------------- */
 
 echo "\n";

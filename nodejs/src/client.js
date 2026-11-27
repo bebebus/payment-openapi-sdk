@@ -104,19 +104,24 @@ export class Client {
     const url = new URL(base + path);
     const lib = url.protocol === 'https:' ? https : http;
 
+    const headers = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+      Accept: 'application/json',
+      // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认/空 UA 拦成 403。
+      // 版本号从 package.json 单一派生（见 SDK_VERSION）。
+      'User-Agent': USER_AGENT,
+    };
+    if (this.config.lang) {
+      headers['X-Lang'] = this.config.lang;
+    }
+
     const { status, text } = await new Promise((resolve, reject) => {
       const req = lib.request(
         url,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload),
-            Accept: 'application/json',
-            // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认/空 UA 拦成 403。
-            // 版本号从 package.json 单一派生（见 SDK_VERSION）。
-            'User-Agent': USER_AGENT,
-          },
+          headers,
           timeout: this.config.timeout,
         },
         (res) => {

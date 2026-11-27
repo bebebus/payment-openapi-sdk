@@ -39,6 +39,8 @@ type Client struct {
 	cfg        Config
 	baseURL    string
 	baseURLErr error // 基址解析错误（如选 Production 未传 BaseURL），首个请求时返回。
+	lang       string
+	langErr    error // 可选语言头校验错误（如含 CR/LF），首个请求时返回。
 	httpClient *http.Client
 }
 
@@ -49,10 +51,13 @@ type Client struct {
 // 形如 https://api.<service_domain>/api/open/v1）。
 func NewClient(cfg Config) *Client {
 	base, err := cfg.resolveBaseURL()
+	lang, langErr := cfg.resolveLang()
 	return &Client{
 		cfg:        cfg,
 		baseURL:    strings.TrimRight(base, "/"),
 		baseURLErr: err,
+		lang:       lang,
+		langErr:    langErr,
 		httpClient: &http.Client{
 			Timeout: cfg.resolveTimeout(),
 			// [LOW 重定向] OpenAPI 是固定 POST 端点，任何重定向都不合法（可能把 POST body
@@ -212,6 +217,9 @@ func (c *Client) call(ctx context.Context, path string, params map[string]any, k
 	if c.baseURLErr != nil {
 		return nil, c.baseURLErr
 	}
+	if c.langErr != nil {
+		return nil, c.langErr
+	}
 	secret := c.secretFor(kind)
 	if isBlankSecret(secret) {
 		field := "SecretPay"
@@ -302,6 +310,9 @@ func (c *Client) do(ctx context.Context, base, path string, body map[string]any)
 	// 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
 	// 版本号从 Version 常量单一派生。
 	req.Header.Set("User-Agent", "openapi-sdk-go/"+Version)
+	if c.lang != "" {
+		req.Header.Set("X-Lang", c.lang)
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {

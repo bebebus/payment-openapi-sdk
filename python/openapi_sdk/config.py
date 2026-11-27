@@ -39,6 +39,20 @@ class Environment(Enum):
         return self.value
 
 
+def _normalize_lang(lang: Optional[str]) -> Optional[str]:
+    """归一化可选响应语言（X-Lang 头），拒绝非法类型与 CRLF 注入。"""
+    if lang is None:
+        return None
+    if not isinstance(lang, str):
+        raise ValueError("lang 必须为字符串")
+    trimmed = lang.strip()
+    if not trimmed:
+        return None
+    if "\r" in trimmed or "\n" in trimmed:
+        raise ValueError("lang 不能包含换行符")
+    return trimmed
+
+
 class Config:
     """客户端配置。
 
@@ -47,6 +61,7 @@ class Config:
 
     基址优先级：显式 ``base_url`` > ``environment`` 预设。``base_url`` 末尾斜杠会被去除。
     若最终基址为空（如选了 PRODUCTION 又未传 ``base_url``）则抛 ``ValueError``。
+    可选 ``lang`` 通过 ``X-Lang`` 请求头告知服务端错误消息语言（如 ``"en-US"``）。
     """
 
     def __init__(
@@ -58,6 +73,7 @@ class Config:
         environment: Environment = Environment.PRODUCTION,
         base_url: Optional[str] = None,
         timeout: float = 30.0,
+        lang: Optional[str] = None,
     ) -> None:
         if not merchant_no:
             raise ValueError("merchant_no 不能为空")
@@ -96,6 +112,7 @@ class Config:
             )
         self.base_url = resolved
         self.timeout = timeout
+        self.lang = _normalize_lang(lang)
 
     # [L14] 按需取密钥：调用对应业务方法时才校验，缺失即 fail-closed（绝不空密钥签名）。
     def require_secret_pay(self) -> str:

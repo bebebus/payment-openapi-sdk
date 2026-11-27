@@ -118,6 +118,7 @@ class Client:
         environment: Environment = Environment.PRODUCTION,
         base_url: Optional[str] = None,
         timeout: float = 30.0,
+        lang: Optional[str] = None,
     ) -> "Client":
         return cls(
             Config(
@@ -128,6 +129,7 @@ class Client:
                 environment=environment,
                 base_url=base_url,
                 timeout=timeout,
+                lang=lang,
             )
         )
 
@@ -492,8 +494,11 @@ class Client:
         data = json.dumps(
             payload, ensure_ascii=False, allow_nan=False
         ).encode("utf-8")
+        headers = dict(_JSON_HEADERS)
+        if self._config.lang:
+            headers["X-Lang"] = self._config.lang
         request = urllib.request.Request(
-            url, data=data, headers=dict(_JSON_HEADERS), method="POST"
+            url, data=data, headers=headers, method="POST"
         )
 
         try:

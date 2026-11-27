@@ -233,14 +233,18 @@ public final class Client {
 
         // 4) 发送
         String url = base + path;
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(config.timeout())
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
                 // 版本号从 VERSION 常量单一派生。
-                .header("User-Agent", "openapi-sdk-java/" + VERSION)
+                .header("User-Agent", "openapi-sdk-java/" + VERSION);
+        if (config.lang() != null) {
+            reqBuilder.header("X-Lang", config.lang());
+        }
+        HttpRequest request = reqBuilder
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
 
