@@ -33,7 +33,7 @@ public final class Client {
      * [L19] SDK 版本号单一事实源：UA 由此常量派生（不再硬编码）。
      * release.sh 发版时按此常量 sed 同步（与 pom.xml &lt;version&gt; 一致）。
      */
-    public static final String VERSION = "2.3.0";
+    public static final String VERSION = "2.3.1";
 
     private final Config config;
     private final HttpClient http;
@@ -166,7 +166,7 @@ public final class Client {
     // 工单（密钥：api_secret_pay）
     // ============================================================
 
-    /** 创建工单 POST /merchant/issue-ticket/create。params: order_no 必填，notify_url 可选。 */
+    /** 创建工单 POST /merchant/issue-ticket/create。params: order_no 必填，out_ticket_no/content/image_base64/image_mime/notify_url 可选。 */
     public ApiResponse issueTicketCreate(Map<String, Object> params) {
         return call("/merchant/issue-ticket/create", params, Secret.PAY);
     }
@@ -233,14 +233,18 @@ public final class Client {
 
         // 4) 发送
         String url = base + path;
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(config.timeout())
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
                 // 版本号从 VERSION 常量单一派生。
-                .header("User-Agent", "openapi-sdk-java/" + VERSION)
+                .header("User-Agent", "openapi-sdk-java/" + VERSION);
+        if (config.lang() != null) {
+            reqBuilder.header("X-Lang", config.lang());
+        }
+        HttpRequest request = reqBuilder
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
 

@@ -37,6 +37,8 @@ func main() {
 
 	// —— 演示 1：构造一段合法的「代收回调」并验签处理 ——
 	payBody := signedCallbackBody(map[string]any{
+		"event_id":         "evt_pay_P202501010001_success",
+		"notify_timestamp": 1735732800,
 		"merchant_no":      "M00000001",
 		"order_no":         "P202501010001",
 		"out_order_no":     "202501010001",
@@ -47,7 +49,7 @@ func main() {
 		"currency":         "PHP",
 		"status":           "success",
 		"channel_order_no": nil, // 对外恒 null，不参与签名。
-		"paid_at":          "2025-01-01T08:00:00+08:00",
+		"paid_at":          "2025-01-01T12:00:00.000Z",
 	}, secretPay)
 
 	fmt.Println("== 代收回调 ==")
@@ -55,6 +57,8 @@ func main() {
 
 	// —— 演示 2：构造一段合法的「代付回调」并验签处理 ——
 	payoutBody := signedCallbackBody(map[string]any{
+		"event_id":         "evt_payout_W202501010001_success",
+		"notify_timestamp": 1735736400,
 		"merchant_no":      "M00000001",
 		"payout_no":        "W202501010001",
 		"out_payout_no":    "WD202501010001",
@@ -63,7 +67,7 @@ func main() {
 		"status":           "success",
 		"fee_amount":       500,
 		"channel_order_no": nil,
-		"finished_at":      "2025-01-01T09:00:00+08:00",
+		"finished_at":      "2025-01-01T13:00:00.000Z",
 	}, secretPayout)
 
 	fmt.Println("== 代付回调 ==")

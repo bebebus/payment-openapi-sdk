@@ -715,10 +715,13 @@ checkTrue('[E] 仅配 paySecret 验代付回调抛 InvalidArgumentException', $m
 
 $errorCodesAppendix = require __DIR__ . '/../appendix/error-codes.php';
 checkTrue('[appendix] error-codes.php 返回数组含 errors', is_array($errorCodesAppendix) && isset($errorCodesAppendix['errors']) && is_array($errorCodesAppendix['errors']));
-check('[appendix] error-codes.php 共 30 个错误码', 30, count($errorCodesAppendix['errors']));
+check('[appendix] error-codes.php 共 31 个错误码', 31, count($errorCodesAppendix['errors']));
 $errorCodeSet = array_column($errorCodesAppendix['errors'], 'code');
-foreach (['100108', '300302', '300304', '300308', '300309'] as $expectedCode) {
+foreach (['100107', '100108', '300302', '300304', '300308', '300309', '300415', '300416'] as $expectedCode) {
     checkTrue("[appendix] error-codes 含 {$expectedCode}", in_array($expectedCode, $errorCodeSet, true));
+}
+foreach (['200002', '210002'] as $removedCode) {
+    checkTrue("[appendix] error-codes 不含已废弃 {$removedCode}", !in_array($removedCode, $errorCodeSet, true));
 }
 
 $cfgAppendix = require __DIR__ . '/../appendix/config.example.php';
@@ -795,6 +798,28 @@ foreach (['account_no', 'out_payout_no', 'original_sign'] as $key) {
     $different[$key] .= '-different';
     check("precheck 不匹配 $key", PayoutPrecheck::REJECT, PayoutPrecheck::decide($different, $precheckSaved));
 }
+
+/* ---------------------------- X-Lang 响应语言头 ---------------------------- */
+
+$cfgLangDefault = new Config('M', 'k', 'p', 'q', Environment::SANDBOX);
+check('Config lang 默认为 null', null, $cfgLangDefault->lang);
+$cfgLangBlank = new Config('M', 'k', 'p', 'q', Environment::SANDBOX, null, 30, '   ');
+check('Config lang 空白归一为 null', null, $cfgLangBlank->lang);
+$cfgLangEn = new Config('M', 'k', 'p', 'q', Environment::SANDBOX, null, 30, ' en-US ');
+check('Config lang 去除首尾空白', 'en-US', $cfgLangEn->lang);
+$langCrlfThrew = false;
+try {
+    new Config('M', 'k', 'p', 'q', Environment::SANDBOX, null, 30, "en-US\r\nX-Bad: 1");
+} catch (\InvalidArgumentException $e) {
+    $langCrlfThrew = true;
+}
+checkTrue('Config lang 含 CRLF 抛 InvalidArgumentException', $langCrlfThrew);
+
+$headerMethod = new \ReflectionMethod(Client::class, 'buildHttpHeaders');
+$defaultHeaders = $headerMethod->invoke(new Client($cfgLangDefault));
+checkFalse('默认请求头不含 X-Lang', in_array('X-Lang: en-US', $defaultHeaders, true));
+$enHeaders = $headerMethod->invoke(new Client($cfgLangEn));
+checkTrue('配置 lang 后请求头含 X-Lang: en-US', in_array('X-Lang: en-US', $enHeaders, true));
 
 /* ---------------------------- 汇总 ---------------------------- */
 

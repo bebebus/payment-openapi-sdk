@@ -65,9 +65,9 @@ try:
     try:
         _SDK_VERSION = _pkg_version("bebebus-merchant-openapi-sdk")
     except PackageNotFoundError:
-        _SDK_VERSION = "2.3.0"
+        _SDK_VERSION = "2.3.1"
 except ImportError:  # pragma: no cover —— Python <3.8 无 importlib.metadata
-    _SDK_VERSION = "2.3.0"
+    _SDK_VERSION = "2.3.1"
 
 _JSON_HEADERS = {
     "Content-Type": "application/json",
@@ -118,6 +118,7 @@ class Client:
         environment: Environment = Environment.PRODUCTION,
         base_url: Optional[str] = None,
         timeout: float = 30.0,
+        lang: Optional[str] = None,
     ) -> "Client":
         return cls(
             Config(
@@ -128,6 +129,7 @@ class Client:
                 environment=environment,
                 base_url=base_url,
                 timeout=timeout,
+                lang=lang,
             )
         )
 
@@ -376,12 +378,14 @@ class Client:
         image_base64: Optional[str] = None,
         image_mime: Optional[str] = None,
         notify_url: Optional[str] = None,
+        out_ticket_no: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """POST /merchant/issue-ticket/create — 创建工单。notify_url 为空则不推送回复。"""
+        """POST /merchant/issue-ticket/create — 创建工单。out_ticket_no 为可选幂等号；notify_url 为空则不推送回复。"""
         return self._call_pay(
             "/merchant/issue-ticket/create",
             {
                 "order_no": order_no,
+                "out_ticket_no": out_ticket_no,
                 "content": content,
                 "image_base64": image_base64,
                 "image_mime": image_mime,
@@ -492,8 +496,11 @@ class Client:
         data = json.dumps(
             payload, ensure_ascii=False, allow_nan=False
         ).encode("utf-8")
+        headers = dict(_JSON_HEADERS)
+        if self._config.lang:
+            headers["X-Lang"] = self._config.lang
         request = urllib.request.Request(
-            url, data=data, headers=dict(_JSON_HEADERS), method="POST"
+            url, data=data, headers=headers, method="POST"
         )
 
         try:

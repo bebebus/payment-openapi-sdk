@@ -3,7 +3,7 @@
 # 商户支付 OpenAPI 多语言 SDK
 
 [![npm](https://img.shields.io/npm/v/@bebebus/merchant-openapi-sdk?label=npm)](https://www.npmjs.com/package/@bebebus/merchant-openapi-sdk) [![PyPI](https://img.shields.io/pypi/v/bebebus-merchant-openapi-sdk?label=PyPI)](https://pypi.org/project/bebebus-merchant-openapi-sdk/) [![Packagist](https://img.shields.io/packagist/v/bebebus/merchant-openapi-sdk?label=Packagist)](https://packagist.org/packages/bebebus/merchant-openapi-sdk) [![Go Reference](https://pkg.go.dev/badge/github.com/bebebus/SDK/go/v2.svg)](https://pkg.go.dev/github.com/bebebus/SDK/go/v2) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bebebus/SDK/badge)](https://scorecard.dev/viewer/?uri=github.com/bebebus/SDK)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bebebus/payment-openapi-sdk/badge)](https://scorecard.dev/viewer/?uri=github.com/bebebus/payment-openapi-sdk)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13569/badge)](https://www.bestpractices.dev/projects/13569)
 
 为商户支付开放接口（代收 / 代付 / 回调）提供 **PHP / Python / Java / Go / Node.js** 五套 SDK。
@@ -28,7 +28,7 @@ SDK/
 ├── ROADMAP.md           # 未来一年的维护方向
 ├── UPGRADING.md         # 安装版本、升级与 1.x 迁移
 ├── RELEASE_NOTES.md     # 各版本面向用户的变更摘要
-├── test-vectors.json    # 跨语言签名「标准答案」向量（11 条；五套单测都断言它）
+├── test-vectors.json    # 跨语言签名「标准答案」向量（13 条；五套单测都断言它）
 ├── appendix/            # 附录配置与国家/币种/银行代码参考表、JSON、CSV
 ├── _tooling/
 │   └── generate-vectors.mjs   # 向量生成器（经三处权威实现交叉校验后产出）
@@ -44,13 +44,13 @@ SDK/
 npm / PyPI / Packagist / Go 四套上架对应包索引（scoped 到 `bebebus`，MIT，零运行时依赖）；
 **Java 不发 Maven，仅源码引入**（把 `java/src/main/java` 直接加入你的工程，或用 `pom.xml` 自行打 jar）。发布命令见 [`PUBLISHING.md`](./PUBLISHING.md)。
 
-| 语言 | 安装 / 引入 | HTTP（无第三方） | 测试命令 |
-|------|-------------|------------------|----------|
-| Node.js | `npm i @bebebus/merchant-openapi-sdk`；`import { Client } from '@bebebus/merchant-openapi-sdk'` | `node:https` / `node:http` | `cd nodejs && node --test` |
-| Python | `pip install bebebus-merchant-openapi-sdk`；`from openapi_sdk import Client` | `urllib.request` | `cd python && python3 -m unittest discover -s tests` |
-| PHP | `composer require bebebus/merchant-openapi-sdk`；命名空间 `Merchant\Openapi` | cURL 扩展 | `cd php && php tests/run.php` |
-| Go | `go get github.com/bebebus/SDK/go/v2@v2.3.0`（最低 Go 1.21）；`import openapi "github.com/bebebus/SDK/go/v2"` | `net/http` | `cd go && go test -count=1 ./...` |
-| Java | **源码引入（不发 Maven）**；`import cloud.cniia.openapi.sdk.Client` | `java.net.http.HttpClient` | `cd java && bash run-tests.sh` |
+| 语言 | 最低运行版本 | 安装 / 引入 | HTTP（无第三方） | 测试命令 |
+|------|--------------|-------------|------------------|----------|
+| Node.js | Node.js >= 18（仅 ESM） | `npm i @bebebus/merchant-openapi-sdk`；`import { Client } from '@bebebus/merchant-openapi-sdk'` | `node:https` / `node:http` | `cd nodejs && node --test` |
+| Python | Python >= 3.8 | `pip install bebebus-merchant-openapi-sdk`；`from openapi_sdk import Client` | `urllib.request` | `cd python && python3 -m unittest discover -s tests` |
+| PHP | PHP >= 8.1 | `composer require bebebus/merchant-openapi-sdk`；命名空间 `Merchant\Openapi` | cURL 扩展 | `cd php && php tests/run.php` |
+| Go | Go >= 1.21 | `go get github.com/bebebus/SDK/go/v2@v2.3.1`；`import openapi "github.com/bebebus/SDK/go/v2"` | `net/http` | `cd go && go test -count=1 ./...` |
+| Java | JDK >= 17 | **源码引入（不发 Maven）**；`import cloud.cniia.openapi.sdk.Client` | `java.net.http.HttpClient` | `cd java && bash run-tests.sh` |
 
 > Go 测试读取外部 `test-vectors.json`，`go test` 的缓存不追踪该文件，**改向量后用 `-count=1`** 强制重跑。
 
@@ -93,10 +93,10 @@ const client = new Client(new Config({
   // 本地联调可改用：environment: Environment.SANDBOX,
 }));
 
-// 代收下单（pay_method 必填；金额为最小单位整数，10000 = 1 元）
+// 代收下单（pay_method 必填；金额为最小单位整数，10000 = 1 元，PHP 下限 10 PHP = 100000）
 const { data } = await client.payCreate({
   out_order_no: 'order-' + Date.now(),
-  amount: 10000, currency: 'PHP', pay_method: 'gcash', country: 'PH',
+  amount: 100000, currency: 'PHP', pay_method: 'gcash', country: 'PH',
   notify_url: 'https://merchant.example.com/api/notify/pay',
 });
 console.log(data.order_no, data.pay_url);
@@ -127,22 +127,22 @@ console.log(data.order_no, data.pay_url);
 
 ## 回调（验签 + 处理片段）
 
-订单进入终态后，服务会向你的 `notify_url` 发送 JSON 回调，体内含 `sign`。处理要点（示例见各语言 `examples/callback_verify.*`）：
+订单满足回调条件后（代收仅 `success`，代付/退款为终态 `success`/`failed`，工单有新回复时），服务会向你的 `notify_url` 发送 JSON 回调（`User-Agent: openapi-merchant-notify`），体内含 `event_id`、`notify_timestamp` 与 `sign`。处理要点（示例见各语言 `examples/callback_verify.*`）：
 
 1. 读原始 body → 解析 JSON。
-2. 验签：代收/退款回调用 `api_secret_pay`，代付回调用 `api_secret_payout`；**时序安全比较**；按"除 `sign` 外所有字段参与"通用计算（不硬编码字段表）。
-3. 按 `status` **幂等**处理（同一单可能被回调多次）。
-4. 应答：HTTP 200 + 纯文本 `success`。未返回约定的成功应答时，同一订单可能按 `1m,2m,5m,10m,30m,60m` 的间隔再次回调，约 6 次。
+2. 验签：代收/退款/工单回复回调用 `api_secret_pay`（退款须先判断 `refund_no` 分流），代付回调用 `api_secret_payout`；**时序安全比较**；按"除 `sign` 外所有字段参与"通用计算（不硬编码字段表）。
+3. 按业务单号（工单按 `reply_id`，可辅以 `event_id`）**幂等**处理（同一事件可能被回调多次）；代收入账以 `actual_amount` / `net_amount` 为准。
+4. 应答：HTTP 200 + 纯文本 `success`。未返回约定的成功应答时，同一任务默认按 `1m/2m/5m/10m/30m/1h/2h/4h/8h` 退避重试，含首次在内共最多 10 次（总窗口约 15 小时 48 分钟）。
 
 ## 金额约定
 
-所有金额为**最小单位整数**（= 实际金额 × 10000 的整数，例如 `1.2345` 传 `12345`；不区分币种）。SDK 金额参数请用整数类型，避免浮点跨语言格式化差异。
+所有金额为 **64 位整数（`int64`）**（= 实际金额 × 10000，例如 `10 PHP` 传 `100000`、`1.2345 USDT` 传 `12345`；严禁使用 32 位 `int32`），且须满足币种小数步长（`VND`/`IDR`/`KRW`/`JPY`/`MMK` 0 位小数须整除 `10000`，`PHP`/`CNY` 等 2 位小数须整除 `100`，`USDT` 最多 4 位小数；超精度返回 `100001`）。SDK 金额参数请用 64 位整数类型，避免浮点跨语言格式化差异。
 
 ## 签名
 
-HMAC-SHA256 → 十六进制小写。算法与逐语言落地坑（嵌套 JSON 序列化必须对齐 JS：不转义 `/`、非 ASCII、`<>&`；顶层布尔归一 `true/false`；空对象 `{}` ≠ 空数组 `[]`）见 [`SIGNING.md`](./SIGNING.md)。
+HMAC-SHA256 → 十六进制小写。算法与逐语言落地坑（嵌套 JSON 序列化必须对齐 JS：不转义 `/`、非 ASCII、`<>&`、`U+2028`/`U+2029`；顶层布尔归一 `true/false`；空对象 `{}` ≠ 空数组 `[]`）见 [`SIGNING.md`](./SIGNING.md)。
 
-跨语言一致性由 [`test-vectors.json`](./test-vectors.json)（11 条标准答案向量）保证：五套 SDK 的单测都对每条向量断言 `base` 与 `sign` 逐字节相等。重算向量：`node _tooling/generate-vectors.mjs`（会用三处权威实现交叉校验后才写出）。
+跨语言一致性由 [`test-vectors.json`](./test-vectors.json)（13 条标准答案向量）保证：五套 SDK 的单测都对每条向量断言 `base` 与 `sign` 逐字节相等。重算向量：`node _tooling/generate-vectors.mjs`（会用三处权威实现交叉校验后才写出）。
 
 ## 一次性跑全部测试
 

@@ -24,7 +24,7 @@ final class Client
      * [L19] SDK 版本号单一事实源：UA 由此常量派生（不再硬编码）。
      * release.sh 发版时按此常量 sed 同步（与 composer.json 一致）。
      */
-    public const VERSION = '2.3.0';
+    public const VERSION = '2.3.1';
 
     /** @var callable(string,string,int):array{status:int,body:string} 注入的 HTTP 执行器（默认 cURL） */
     private $httpExecutor;
@@ -220,9 +220,9 @@ final class Client
 
     /**
      * 创建工单 POST /merchant/issue-ticket/create（密钥 api_secret_pay）。
-     * order_no 必填；content、image_base64、image_mime、notify_url 可选。
+     * order_no 必填；out_ticket_no（可选幂等号）、content、image_base64、image_mime、notify_url 可选。
      *
-     * @param array{order_no:string, content?:string|null, image_base64?:string|null, image_mime?:string|null, notify_url?:string|null} $params
+     * @param array{order_no:string, out_ticket_no?:string|null, content?:string|null, image_base64?:string|null, image_mime?:string|null, notify_url?:string|null} $params
      * @return array<string,mixed> data
      */
     public function issueTicketCreate(array $params): array
@@ -380,7 +380,10 @@ final class Client
      */
     private function encodeBody(array $payload, ?string $requestSign = null): string
     {
-        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $json = json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS
+        );
         if ($json === false) {
             throw new TransportException(
                 '请求体 JSON 编码失败: ' . json_last_error_msg(),
@@ -420,6 +423,27 @@ final class Client
     }
 
     /**
+     * 构造出站 HTTP 请求头列表。
+     *
+     * @return list<string>
+     */
+    private function buildHttpHeaders(): array
+    {
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
+            // 版本号从 self::VERSION 单一派生。
+            'User-Agent: merchant-openapi-sdk-php/' . self::VERSION,
+        ];
+        if ($this->config->lang !== null) {
+            $headers[] = 'X-Lang: ' . $this->config->lang;
+        }
+
+        return $headers;
+    }
+
+    /**
      * 默认 HTTP 执行器：cURL（核心扩展，非第三方）。
      *
      * @return array{status:int,body:string}
@@ -436,13 +460,7 @@ final class Client
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $json,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
-                // 版本号从 self::VERSION 单一派生。
-                'User-Agent: merchant-openapi-sdk-php/' . self::VERSION,
-            ],
+            CURLOPT_HTTPHEADER => $this->buildHttpHeaders(),
             CURLOPT_TIMEOUT => $timeoutSeconds,
             CURLOPT_CONNECTTIMEOUT => $timeoutSeconds,
             // —— 传输安全钉死 ——

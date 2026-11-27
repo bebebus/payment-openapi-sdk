@@ -3,7 +3,7 @@
 # Merchant Payment OpenAPI Multi-Language SDK
 
 [![npm](https://img.shields.io/npm/v/@bebebus/merchant-openapi-sdk?label=npm)](https://www.npmjs.com/package/@bebebus/merchant-openapi-sdk) [![PyPI](https://img.shields.io/pypi/v/bebebus-merchant-openapi-sdk?label=PyPI)](https://pypi.org/project/bebebus-merchant-openapi-sdk/) [![Packagist](https://img.shields.io/packagist/v/bebebus/merchant-openapi-sdk?label=Packagist)](https://packagist.org/packages/bebebus/merchant-openapi-sdk) [![Go Reference](https://pkg.go.dev/badge/github.com/bebebus/SDK/go/v2.svg)](https://pkg.go.dev/github.com/bebebus/SDK/go/v2) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bebebus/SDK/badge)](https://scorecard.dev/viewer/?uri=github.com/bebebus/SDK)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bebebus/payment-openapi-sdk/badge)](https://scorecard.dev/viewer/?uri=github.com/bebebus/payment-openapi-sdk)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13569/badge)](https://www.bestpractices.dev/projects/13569)
 
 Provides five SDKs in **PHP / Python / Java / Go / Node.js** for the merchant payment open API (collection / payout / callback).
@@ -19,7 +19,7 @@ SDK/
 ├── INTERFACES.md        # Field-level request/response for the 15 signed business endpoints, callback fields, error codes
 ├── CONTRIBUTING.md      # Branch, pull request, testing, and release contribution requirements
 ├── RELEASE_NOTES.md     # Human-readable summaries for each user-facing release
-├── test-vectors.json    # Cross-language signing test vectors (11 entries; asserted by all five test suites)
+├── test-vectors.json    # Cross-language signing test vectors (13 entries; asserted by all five test suites)
 ├── appendix/            # Appendix config and country/currency data index
 ├── _tooling/
 │   └── generate-vectors.mjs   # Vector generator (produced after cross-validation against three authoritative implementations)
@@ -35,13 +35,13 @@ SDK/
 npm / PyPI / Packagist / Go are published to their respective package indexes (scoped to `bebebus`, MIT, zero runtime dependencies);
 **Java is NOT published to Maven — source import only** (add `java/src/main/java` to your project, or build a jar yourself via `pom.xml`). Publishing commands are in [`PUBLISHING.md`](./PUBLISHING.md).
 
-| Language | Install / Import | HTTP (no third-party) | Test command |
-|------|-------------|------------------|----------|
-| Node.js | `npm i @bebebus/merchant-openapi-sdk`; `import { Client } from '@bebebus/merchant-openapi-sdk'` | `node:https` / `node:http` | `cd nodejs && node --test` |
-| Python | `pip install bebebus-merchant-openapi-sdk`; `from openapi_sdk import Client` | `urllib.request` | `cd python && python3 -m unittest discover -s tests` |
-| PHP | `composer require bebebus/merchant-openapi-sdk`; namespace `Merchant\Openapi` | cURL extension | `cd php && php tests/run.php` |
-| Go | `go get github.com/bebebus/SDK/go/v2@v2.3.0` (min Go 1.21); `import openapi "github.com/bebebus/SDK/go/v2"` | `net/http` | `cd go && go test -count=1 ./...` |
-| Java | **Source import (NOT published to Maven)**; `import cloud.cniia.openapi.sdk.Client` | `java.net.http.HttpClient` | `cd java && bash run-tests.sh` |
+| Language | Minimum Runtime | Install / Import | HTTP (no third-party) | Test command |
+|------|-----------------|-------------|------------------|----------|
+| Node.js | Node.js >= 18 (ESM only) | `npm i @bebebus/merchant-openapi-sdk`; `import { Client } from '@bebebus/merchant-openapi-sdk'` | `node:https` / `node:http` | `cd nodejs && node --test` |
+| Python | Python >= 3.8 | `pip install bebebus-merchant-openapi-sdk`; `from openapi_sdk import Client` | `urllib.request` | `cd python && python3 -m unittest discover -s tests` |
+| PHP | PHP >= 8.1 | `composer require bebebus/merchant-openapi-sdk`; namespace `Merchant\Openapi` | cURL extension | `cd php && php tests/run.php` |
+| Go | Go >= 1.21 | `go get github.com/bebebus/SDK/go/v2@v2.3.1`; `import openapi "github.com/bebebus/SDK/go/v2"` | `net/http` | `cd go && go test -count=1 ./...` |
+| Java | JDK >= 17 | **Source import (NOT published to Maven)**; `import cloud.cniia.openapi.sdk.Client` | `java.net.http.HttpClient` | `cd java && bash run-tests.sh` |
 
 > The Go tests read the external `test-vectors.json`, and `go test`'s cache does not track that file, so **after changing the vectors use `-count=1`** to force a re-run.
 
@@ -87,7 +87,7 @@ const client = new Client(new Config({
 // Create a collection order (pay_method required; amount is a minor-unit integer)
 const { data } = await client.payCreate({
   out_order_no: 'order-' + Date.now(),
-  amount: 10000, currency: 'PHP', pay_method: 'gcash', country: 'PH',
+  amount: 100000, currency: 'PHP', pay_method: 'gcash', country: 'PH',
   notify_url: 'https://merchant.example.com/api/notify/pay',
 });
 console.log(data.order_no, data.pay_url);
@@ -114,22 +114,22 @@ See [`appendix/README.md`](./appendix/README.md) for the full index.
 
 ## Callback (signature verification + handling snippet)
 
-When an order reaches a terminal state, the service sends a JSON callback to your `notify_url`, with `sign` in the body. Key handling points (examples in each language's `examples/callback_verify.*`):
+When an order meets the callback trigger condition (collection on `success` only; payout/refund on both `success`/`failed`; ticket on each new reply), the service sends a JSON callback (`User-Agent: openapi-merchant-notify`) to your `notify_url` with `event_id`, `notify_timestamp`, and `sign`. Key handling points (examples in each language's `examples/callback_verify.*`):
 
 1. Read the raw body → parse JSON.
-2. Verify the signature: use `api_secret_pay` for collection/refund callbacks, and `api_secret_payout` for payout callbacks; use a **constant-time comparison**; compute generically over "all fields except `sign` participate" (do not hard-code the field table).
-3. Process **idempotently** by `status` (the same order may be called back multiple times).
-4. Respond with HTTP 200 + plain text `success`. If the expected success response is not returned, the same order may be called again at `1m,2m,5m,10m,30m,60m` intervals, about 6 times.
+2. Verify the signature: use `api_secret_pay` for collection/refund/ticket callbacks (check `refund_no` first to separate refunds from collections), and `api_secret_payout` for payout callbacks; use a **constant-time comparison**; compute generically over "all fields except `sign` participate" (do not hard-code the field table).
+3. Process **idempotently** by order number (`reply_id` for ticket replies, with `event_id` for tracing); credit collections by `actual_amount` / `net_amount`.
+4. Respond with HTTP 200 + plain text `success`. If the expected success response is not returned, the delivery retries with backoff `1m/2m/5m/10m/30m/1h/2h/4h/8h`, up to 10 attempts total (~15h 48m coverage window).
 
 ## Amount Convention
 
-All amounts are **minor-unit integers** (= the actual amount × 10000 as an integer, e.g. `1.2345` is sent as `12345`; not currency-specific). Use integer types for SDK amount parameters to avoid cross-language floating-point formatting differences.
+All amounts are **64-bit integers (`int64`)** (= actual value × 10000, e.g. `10 PHP` is `100000`, `1.2345 USDT` is `12345`; never use 32-bit `int32`), and must obey per-currency decimal steps (`VND`/`IDR`/`KRW`/`JPY`/`MMK`: 0 decimals = multiple of `10000`; `PHP`/`CNY`/etc.: 2 decimals = multiple of `100`; `USDT`/default: up to 4 decimals; excess precision returns `100001`). Use 64-bit integer types for SDK amount parameters to avoid cross-language floating-point formatting differences.
 
 ## Signing
 
-HMAC-SHA256 → lowercase hexadecimal. For the algorithm and per-language landing pitfalls (nested JSON serialization must align with JS: do not escape `/`, non-ASCII, `<>&`; normalize top-level booleans to `true/false`; empty object `{}` ≠ empty array `[]`), see [`SIGNING.md`](./SIGNING.en.md).
+HMAC-SHA256 → lowercase hexadecimal. For the algorithm and per-language landing pitfalls (nested JSON serialization must align with JS: do not escape `/`, non-ASCII, `<>&`, or `U+2028`/`U+2029`; normalize top-level booleans to `true/false`; empty object `{}` ≠ empty array `[]`), see [`SIGNING.md`](./SIGNING.en.md).
 
-Cross-language consistency is guaranteed by [`test-vectors.json`](./test-vectors.json) (11 signature test vectors): the unit tests of all five SDKs assert that `base` and `sign` are byte-for-byte equal for every vector. To recompute the vectors: `node _tooling/generate-vectors.mjs` (it cross-validates against three authoritative implementations before writing them out).
+Cross-language consistency is guaranteed by [`test-vectors.json`](./test-vectors.json) (13 signature test vectors): the unit tests of all five SDKs assert that `base` and `sign` are byte-for-byte equal for every vector. To recompute the vectors: `node _tooling/generate-vectors.mjs` (it cross-validates against three authoritative implementations before writing them out).
 
 ## Run All Tests at Once
 

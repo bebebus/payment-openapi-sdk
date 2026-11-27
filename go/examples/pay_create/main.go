@@ -30,7 +30,7 @@ func main() {
 	// 业务字段：值为 nil 的字段不入请求体也不参与签名。
 	resp, err := client.PayCreate(ctx, map[string]any{
 		"out_order_no": "202501010001", // 商户订单号（幂等键，唯一）。
-		"amount":       10000,          // 最小单位整数，10000 = 1 元。
+		"amount":       100000,         // 最小单位整数，10000 = 1 元（PHP 下限 10 PHP = 100000）。
 		"currency":     "PHP",
 		"pay_method":   "gcash",
 		"country":      "PH",

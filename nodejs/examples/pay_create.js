@@ -22,7 +22,7 @@ async function main() {
     const outOrderNo = 'DEMO' + Date.now();
     const { data } = await client.payCreate({
       out_order_no: outOrderNo,
-      amount: 10000, // 1 元（最小单位整数）
+      amount: 100000, // 10 PHP（最小单位整数，PHP 下限 10 PHP）
       currency: 'PHP',
       pay_method: 'gcash',
       country: 'PH',

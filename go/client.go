@@ -15,7 +15,7 @@ import (
 
 // Version 是 SDK 版本号单一事实源：UA 由它派生（不再硬编码）。
 // release.sh 发版打 tag go/vX.Y.Z 时，同步 sed 此常量保持一致。
-const Version = "2.3.0"
+const Version = "2.3.1"
 
 // secretKind 标记某端点该用哪把密钥。
 type secretKind int
@@ -39,6 +39,8 @@ type Client struct {
 	cfg        Config
 	baseURL    string
 	baseURLErr error // 基址解析错误（如选 Production 未传 BaseURL），首个请求时返回。
+	lang       string
+	langErr    error // 可选语言头校验错误（如含 CR/LF），首个请求时返回。
 	httpClient *http.Client
 }
 
@@ -49,10 +51,13 @@ type Client struct {
 // 形如 https://api.<service_domain>/api/open/v1）。
 func NewClient(cfg Config) *Client {
 	base, err := cfg.resolveBaseURL()
+	lang, langErr := cfg.resolveLang()
 	return &Client{
 		cfg:        cfg,
 		baseURL:    strings.TrimRight(base, "/"),
 		baseURLErr: err,
+		lang:       lang,
+		langErr:    langErr,
 		httpClient: &http.Client{
 			Timeout: cfg.resolveTimeout(),
 			// [LOW 重定向] OpenAPI 是固定 POST 端点，任何重定向都不合法（可能把 POST body
@@ -150,7 +155,7 @@ func (c *Client) PayoutTestComplete(ctx context.Context, params map[string]any) 
 
 // ===================== 工单（密钥 api_secret_pay） =====================
 
-// IssueTicketCreate 创建工单。params 须含 order_no，可选 content、image_base64、image_mime、notify_url。
+// IssueTicketCreate 创建工单。params 须含 order_no，可选 out_ticket_no、content、image_base64、image_mime、notify_url。
 func (c *Client) IssueTicketCreate(ctx context.Context, params map[string]any) (*Response, error) {
 	return c.call(ctx, "/merchant/issue-ticket/create", params, usePay)
 }
@@ -211,6 +216,9 @@ func (c *Client) call(ctx context.Context, path string, params map[string]any, k
 	// 基址解析失败（如选 Production 未传 BaseURL）：首个请求即清晰报错。
 	if c.baseURLErr != nil {
 		return nil, c.baseURLErr
+	}
+	if c.langErr != nil {
+		return nil, c.langErr
 	}
 	secret := c.secretFor(kind)
 	if isBlankSecret(secret) {
@@ -302,6 +310,9 @@ func (c *Client) do(ctx context.Context, base, path string, body map[string]any)
 	// 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认 UA 拦成 403。
 	// 版本号从 Version 常量单一派生。
 	req.Header.Set("User-Agent", "openapi-sdk-go/"+Version)
+	if c.lang != "" {
+		req.Header.Set("X-Lang", c.lang)
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {

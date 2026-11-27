@@ -92,7 +92,7 @@ func main() {
 	outOrderNo := "sdk-" + tag
 	var orderNo string
 	if r, err := client.PayCreate(ctx, map[string]any{
-		"out_order_no": outOrderNo, "amount": 10000, "currency": "PHP", "pay_method": "gcash", "country": "PH",
+		"out_order_no": outOrderNo, "amount": 100000, "currency": "PHP", "pay_method": "gcash", "country": "PH",
 		"notify_url": "https://merchant.example.com/api/notify/pay",
 		"extra":      map[string]any{"customer": map[string]any{"first_name": "San", "last_name": "Zhang", "email": "san@example.com", "phone": "09000000000"}},
 	}); err != nil {
@@ -138,7 +138,7 @@ func main() {
 	outPayoutNo := "sdkw-" + tag
 	payMethod := "gcash"
 	params := map[string]any{
-		"out_payout_no": outPayoutNo, "amount": 10000, "currency": "PHP", "country": "PH",
+		"out_payout_no": outPayoutNo, "amount": 100000, "currency": "PHP", "country": "PH",
 		"notify_url": "https://merchant.example.com/api/notify/payout",
 		"account_no": "1234567890", "account_name": "San Zhang",
 	}

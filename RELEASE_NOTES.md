@@ -2,6 +2,28 @@
 
 This file summarizes user-visible changes for each SDK release. It is maintained alongside the GitHub Releases page and is not a raw Git history export.
 
+## v2.3.1 (2026-11-27) — signing parity fix, OpenAPI review contract alignment & runnable examples
+
+- **PHP SDK signing & wire-encoding fix (`U+2028` / `U+2029`)**:
+  - Added `JSON_UNESCAPED_LINE_TERMINATORS` in `php/src/Signer.php` and `php/src/Client.php` so payloads containing Unicode line/paragraph separators (`U+2028` / `U+2029`) produce identical JSON bytes and HMAC-SHA256 signatures to Node.js, Python, Go, Java, and the server (`100104` fix).
+  - Expanded shared `test-vectors.json` from 11 to 13 vectors (adding `empty_string_and_nested_null` and `unicode_line_terminators`) and verified all 13 vectors byte-for-byte across all five SDKs and server `openApiSign.js`.
+- **Error-code appendices synced across all five languages (`appendix/error-codes.*`, 31 codes)**:
+  - Added `100107` (system under maintenance: HTTP 200 envelope with `Retry-After` header; notes that `payout/proof/query` also pauses during `write_only` maintenance because it queries upstream channels).
+  - Added non-retryable `300415` (`PAY_UPSTREAM_REJECTED`: upstream channel rejected collection order creation, order already marked `failed` and `out_order_no` occupied — use a new `out_order_no`) and `300416` (`PAYOUT_RECEIPT_NOT_SUPPORTED`: receipt not supported in test environment or current channel).
+  - Updated `300410` retryability to `depends` (retry only while the payout order is still `pending`, never once `failed`), scrubbed internal architecture jargon from `300304`, updated `100103` replay window from `300s` to `600s` (`2×300s`), and removed obsolete `200002` / `210002` (unified under `100000`).
+- **Optional response-language header (`Config.lang` → `X-Lang`) across all five SDKs**:
+  - Added optional `lang` configuration (`lang` in Node.js/Python, `$lang` in PHP, `Lang` in Go, `.lang(...)` in Java) that trims whitespace, rejects CR/LF header injection, and attaches `X-Lang: <lang>` on outgoing HTTP requests (never added to the signed JSON body).
+- **Issue-ticket idempotency (`out_ticket_no`)**:
+  - Added optional `out_ticket_no` parameter to `Client.issue_ticket_create(...)` in Python (and documented it across Node.js, PHP, Go, and Java map/array callers) to prevent duplicate tickets on timeout retries.
+- **Contract, signing & security documentation alignment (`INTERFACES(.en).md`, `SIGNING(.en).md`, `README(.en).md`, `SECURITY*.md`)**:
+  - Annotated all amount/fee/freeze/balance fields as `int64` with per-currency decimal step rules (`VND`/`IDR`/`KRW`/`JPY`/`MMK` integer major units, `PHP`/`CNY`/etc. up to 2 decimals, `USDT`/default up to 4 decimals) and unified UTC ISO 8601 (`YYYY-MM-DDTHH:mm:ss.sssZ`) timestamps.
+  - Documented incremental fields: `pay-methods/query` (`biz_types`, `amount_limits`), `payout/receipt/query` (`receipt_path`, `receipt_token` for reverse-proxy deployments), all four callbacks (`event_id`, `notify_timestamp`, 10-attempt retry window ~15h48m, `User-Agent: openapi-merchant-notify`, guaranteed non-null `actual_amount`/`fee_amount`/`net_amount` on collection success callbacks), ticket callbacks/queries (`reply_id`, `out_ticket_no`, `WO`/`TWO` vs `W`/`TW` prefix overlap warning), payout precheck (`User-Agent: openapi-payout-precheck`, transport-error-only `requestSign` with Go `errors.As` assertion), and minimum runtime versions per SDK.
+  - Updated PHP/Go `U+2028`/`U+2029` caveats in `SIGNING(.en).md`, migrated OpenSSF Scorecard links to `bebebus/payment-openapi-sdk`, and updated `/merchant/pay/test/complete` & `/merchant/payout/test/complete` response shapes.
+- **Runnable examples & READMEs (all five languages)**:
+  - Updated PHP demo amounts across READMEs and runnable examples (`pay_create.*`, `go/examples/dev_smoke/main.go`) to `100000` (10 PHP minimum), and aligned all five `callback_verify` examples with `event_id`, `notify_timestamp`, UTC ISO `.000Z` timestamps, `refund_no` branching, and direct `actual_amount` crediting.
+- **No runtime/API breaking changes**: all existing method signatures remain backward-compatible (Python `issue_ticket_create` adds optional `out_ticket_no=None`).
+- Version bumped to `2.3.1` across all five SDKs (`package.json`/`package-lock.json`, `pyproject.toml`, `Client::VERSION`/`Version`/`VERSION` constants, `java/pom.xml`, and source-run version fallbacks). Go: `go get github.com/bebebus/SDK/go/v2@v2.3.1` (tag `go/v2.3.1`).
+
 ## v2.3.0 (2026-11-21) — issue tickets, non-2xx business errors & security/protocol hardening
 
 - **New issue-ticket endpoints & callback verifier (all five languages)**:

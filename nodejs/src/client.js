@@ -23,7 +23,7 @@ const SDK_VERSION = (() => {
   } catch {
     // ignore：读不到就走兜底版本号。
   }
-  return '2.3.0';
+  return '2.3.1';
 })();
 const USER_AGENT = `openapi-sdk-nodejs/${SDK_VERSION}`;
 
@@ -104,19 +104,24 @@ export class Client {
     const url = new URL(base + path);
     const lib = url.protocol === 'https:' ? https : http;
 
+    const headers = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+      Accept: 'application/json',
+      // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认/空 UA 拦成 403。
+      // 版本号从 package.json 单一派生（见 SDK_VERSION）。
+      'User-Agent': USER_AGENT,
+    };
+    if (this.config.lang) {
+      headers['X-Lang'] = this.config.lang;
+    }
+
     const { status, text } = await new Promise((resolve, reject) => {
       const req = lib.request(
         url,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload),
-            Accept: 'application/json',
-            // 自识别 User-Agent：避免被 WAF/CDN（如 Cloudflare）按默认/空 UA 拦成 403。
-            // 版本号从 package.json 单一派生（见 SDK_VERSION）。
-            'User-Agent': USER_AGENT,
-          },
+          headers,
           timeout: this.config.timeout,
         },
         (res) => {
@@ -276,7 +281,7 @@ export class Client {
 
   // ---- 工单（密钥：api_secret_pay）----
 
-  // 创建工单。params: { order_no, content?, image_base64?, image_mime?, notify_url? }
+  // 创建工单。params: { order_no, out_ticket_no?, content?, image_base64?, image_mime?, notify_url? }
   issueTicketCreate(params) {
     return this._post('/merchant/issue-ticket/create', params, 'pay');
   }

@@ -35,6 +35,7 @@ public final class Config {
     private final String apiSecretPay;
     private final String apiSecretPayout;
     private final Duration timeout;
+    private final String lang;
 
     private Config(Builder b) {
         // baseUrl 优先级：显式自定义 > 环境预设；PRODUCTION 无内置基址，必须显式传 baseUrl
@@ -63,6 +64,21 @@ public final class Config {
         this.apiSecretPay = b.apiSecretPay;
         this.apiSecretPayout = b.apiSecretPayout;
         this.timeout = b.timeout != null ? b.timeout : Duration.ofSeconds(30);
+        this.lang = normalizeLang(b.lang);
+    }
+
+    private static String normalizeLang(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.indexOf('\r') >= 0 || trimmed.indexOf('\n') >= 0) {
+            throw new IllegalArgumentException("lang 不能包含换行符");
+        }
+        return trimmed;
     }
 
     /**
@@ -105,6 +121,7 @@ public final class Config {
     public String merchantNo() { return merchantNo; }
     public String apiKey() { return apiKey; }
     public Duration timeout() { return timeout; }
+    public String lang() { return lang; }
 
     /** 取代收/退款密钥（pay 类）。未配置或纯空白则抛异常。 */
     public String requireSecretPay() {
@@ -135,6 +152,7 @@ public final class Config {
         private String apiSecretPay;
         private String apiSecretPayout;
         private Duration timeout;
+        private String lang;
 
         /** 选预设环境（PRODUCTION/SANDBOX）。 */
         public Builder environment(Environment environment) {
@@ -173,6 +191,12 @@ public final class Config {
         /** HTTP 超时（默认 30s）。 */
         public Builder timeout(Duration timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        /** 可选响应语言（通过 X-Lang 请求头传递，如 "en-US"；为空时不发送）。 */
+        public Builder lang(String lang) {
+            this.lang = lang;
             return this;
         }
 

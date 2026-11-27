@@ -47,15 +47,24 @@ export function handlePayCallback(rawBody) {
     return ACK_REJECT;
   }
 
-  // 幂等：同一订单可能被多次回调。
+  // 若与退款回调共用同一 notify_url，先按 refund_no 分流，避免把退款单误当成代收单入账。
+  if (payload.refund_no) {
+    console.log(`[refund] 退款单 ${payload.refund_no} status=${payload.status}`);
+    return ACK_SUCCESS;
+  }
+
+  // 幂等：同一订单可能被多次回调（也可结合 payload.event_id 做事件级去重）。
   if (processedOrders.has(payload.out_order_no)) {
     return ACK_SUCCESS; // 已处理过，照样回成功避免重复处理
   }
 
   switch (payload.status) {
     case 'success':
-      // TODO: 标记订单已支付、按实付金额入账（actual_amount/fee_amount/net_amount）
-      console.log(`[pay] 订单 ${payload.out_order_no} 支付成功，实付=${payload.actual_amount ?? payload.amount}`);
+      // TODO: 标记订单已支付、按实付金额入账（代收成功回调保证 actual_amount/fee_amount/net_amount 非空，切勿回退为 amount）
+      if (typeof payload.actual_amount !== 'number') {
+        return ACK_REJECT;
+      }
+      console.log(`[pay] 订单 ${payload.out_order_no} 支付成功，实付=${payload.actual_amount}`);
       processedOrders.add(payload.out_order_no);
       break;
     case 'failed':
@@ -106,6 +115,8 @@ export function handlePayoutCallback(rawBody) {
 function demo() {
   // 代收成功回调（密钥 api_secret_pay）
   const payBody = {
+    event_id: 'evt_pay_P202501010001_success',
+    notify_timestamp: 1736078400,
     merchant_no: 'M00000001',
     order_no: 'P202501010001',
     out_order_no: '202501010001',
@@ -116,7 +127,7 @@ function demo() {
     currency: 'PHP',
     status: 'success',
     channel_order_no: null,
-    paid_at: '2025-01-05T12:00:00Z',
+    paid_at: '2025-01-05T12:00:00.000Z',
   };
   payBody.sign = sign(payBody, SECRET_PAY);
   console.log('代收回调应答 ->', handlePayCallback(JSON.stringify(payBody)));
@@ -128,6 +139,8 @@ function demo() {
 
   // 代付失败回调（密钥 api_secret_payout）
   const payoutBody = {
+    event_id: 'evt_payout_W202501010001_failed',
+    notify_timestamp: 1736078700,
     merchant_no: 'M00000001',
     payout_no: 'W202501010001',
     out_payout_no: 'WD202501010001',
@@ -136,7 +149,7 @@ function demo() {
     status: 'failed',
     fee_amount: 0,
     channel_order_no: null,
-    finished_at: '2025-01-05T12:05:00Z',
+    finished_at: '2025-01-05T12:05:00.000Z',
     failed_reason: 'account_invalid',
   };
   payoutBody.sign = sign(payoutBody, SECRET_PAYOUT);

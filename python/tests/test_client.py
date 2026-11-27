@@ -254,6 +254,7 @@ class TestKeySelectionAndShaping(unittest.TestCase):
         client = _make_client()
         client.issue_ticket_create(
             order_no="P1",
+            out_ticket_no="TKT_IDEM_001",
             content="用户已付款",
             image_base64="AAAA",
             image_mime="image/png",
@@ -263,6 +264,7 @@ class TestKeySelectionAndShaping(unittest.TestCase):
         self.assertEqual(create_call["path"], "/merchant/issue-ticket/create")
         self.assertEqual(create_call["secret"], "sk_pay_secret")
         self.assertEqual(create_call["body"]["order_no"], "P1")
+        self.assertEqual(create_call["body"]["out_ticket_no"], "TKT_IDEM_001")
         self.assertEqual(create_call["body"]["notify_url"], "https://m.example.com/ticket-cb")
 
         client.issue_ticket_query(ticket_no="TK1")
@@ -467,6 +469,85 @@ class TestAllEndpointsCallable(unittest.TestCase):
 
     def test_endpoint_count(self):
         self.assertEqual(len(self.EXPECTED), 15)
+
+
+class TestLangHeader(unittest.TestCase):
+    def test_config_lang_validation(self):
+        cfg_default = Config(
+            merchant_no="M1", api_key="k", environment=Environment.SANDBOX
+        )
+        self.assertIsNone(cfg_default.lang)
+        cfg_blank = Config(
+            merchant_no="M1", api_key="k", environment=Environment.SANDBOX, lang="  "
+        )
+        self.assertIsNone(cfg_blank.lang)
+        cfg_en = Config(
+            merchant_no="M1",
+            api_key="k",
+            environment=Environment.SANDBOX,
+            lang=" en-US ",
+        )
+        self.assertEqual(cfg_en.lang, "en-US")
+        with self.assertRaises(ValueError):
+            Config(
+                merchant_no="M1",
+                api_key="k",
+                environment=Environment.SANDBOX,
+                lang="en-US\r\nX-Bad: 1",
+            )
+        with self.assertRaises(ValueError):
+            Config(
+                merchant_no="M1",
+                api_key="k",
+                environment=Environment.SANDBOX,
+                lang=123,  # type: ignore[arg-type]
+            )
+
+    def test_request_sends_x_lang_only_when_configured(self):
+        captured = []
+
+        class _FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def getcode(self):
+                return 200
+
+            def read(self):
+                return b'{"code":0,"message":"ok","data":{}}'
+
+        class _FakeOpener:
+            def open(self, req, timeout=None):
+                captured.append(dict(req.header_items()))
+                return _FakeResp()
+
+        c_default = Client.for_environment(
+            merchant_no="M1",
+            api_key="k",
+            api_secret_pay="sk_pay",
+            api_secret_payout="sk_out",
+            environment=Environment.SANDBOX,
+        )
+        c_default._opener = _FakeOpener()  # type: ignore[assignment]
+        c_default.balance_query()
+        self.assertNotIn("X-lang", captured[-1])
+        self.assertNotIn("X-Lang", captured[-1])
+
+        c_en = Client.for_environment(
+            merchant_no="M1",
+            api_key="k",
+            api_secret_pay="sk_pay",
+            api_secret_payout="sk_out",
+            environment=Environment.SANDBOX,
+            lang="en-US",
+        )
+        c_en._opener = _FakeOpener()  # type: ignore[assignment]
+        c_en.balance_query()
+        headers_lower = {k.lower(): v for k, v in captured[-1].items()}
+        self.assertEqual(headers_lower.get("x-lang"), "en-US")
 
 
 if __name__ == "__main__":

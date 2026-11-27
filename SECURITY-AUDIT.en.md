@@ -8,8 +8,8 @@ This page records publicly verifiable third-party security sources for the SDK.
 
 The SDK includes an OpenSSF Scorecard workflow for the `bebebus/payment-openapi-sdk` repository. Results are published to the Scorecard public service and uploaded to GitHub Code Scanning.
 
-- Latest result: [OpenSSF Scorecard report](https://scorecard.dev/viewer/?uri=github.com/bebebus/SDK)
-- Public result API: [Scorecard API](https://api.scorecard.dev/projects/github.com/bebebus/SDK)
+- Latest result: [OpenSSF Scorecard report](https://scorecard.dev/viewer/?uri=github.com/bebebus/payment-openapi-sdk)
+- Public result API: [Scorecard API](https://api.scorecard.dev/projects/github.com/bebebus/payment-openapi-sdk)
 - Repository workflow: [`.github/workflows/scorecard-analysis.yml`](./.github/workflows/scorecard-analysis.yml)
 - Check definitions: [Scorecard checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md)
 - Source project: [OpenSSF Scorecard](https://github.com/ossf/scorecard)

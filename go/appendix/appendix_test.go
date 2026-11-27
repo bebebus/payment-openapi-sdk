@@ -66,7 +66,11 @@ func TestErrorCodes(t *testing.T) {
 	// 约定非 200 的错误码：100108（落地页限流 429）、300302（订单数据暂不可用 500）、300304（建单暂不可用 503）。
 	knownNon200 := map[string]int{"100108": 429, "300302": 500, "300304": 503}
 	found := false
+	found100107 := false
 	for _, e := range ErrorCodes {
+		if e.Code == "200002" || e.Code == "210002" {
+			t.Fatalf("obsolete code %s should be removed", e.Code)
+		}
 		want := 200
 		if v, ok := knownNon200[e.Code]; ok {
 			want = v
@@ -80,8 +84,17 @@ func TestErrorCodes(t *testing.T) {
 				t.Fatalf("100000 retryable=%s", e.Retryable)
 			}
 		}
+		if e.Code == "100107" {
+			found100107 = true
+			if e.Retryable != "yes" {
+				t.Fatalf("100107 retryable=%s", e.Retryable)
+			}
+		}
 	}
 	if !found {
 		t.Fatal("missing 100000")
+	}
+	if !found100107 {
+		t.Fatal("missing 100107")
 	}
 }

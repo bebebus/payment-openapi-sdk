@@ -14,6 +14,7 @@ namespace Merchant\Openapi;
 final class Config
 {
     public readonly string $baseUrl;
+    public readonly ?string $lang;
 
     /**
      * @param string      $merchantNo      商户号（非空）
@@ -23,6 +24,7 @@ final class Config
      * @param Environment $environment     环境预设基址（baseUrl 为 null 时生效）
      * @param string|null $baseUrl         自定义基址，覆盖 environment（用于服务商地址/本地端口）
      * @param int         $timeoutSeconds  HTTP 超时（秒）
+     * @param string|null $lang            可选响应语言（通过 X-Lang 请求头传递，如 'en-US'；不传默认服务端中文）
      */
     public function __construct(
         public readonly string $merchantNo,
@@ -32,6 +34,7 @@ final class Config
         Environment $environment = Environment::PRODUCTION,
         ?string $baseUrl = null,
         public readonly int $timeoutSeconds = 30,
+        ?string $lang = null,
     ) {
         if (trim($merchantNo) === '') {
             throw new \InvalidArgumentException('merchantNo 不能为空');
@@ -56,6 +59,19 @@ final class Config
 
         // 已去掉末尾斜杠，拼接端点时统一不重复
         $this->baseUrl = $resolved;
+
+        if ($lang !== null) {
+            $trimmedLang = trim($lang);
+            if ($trimmedLang === '') {
+                $this->lang = null;
+            } elseif (preg_match('/[\r\n]/', $trimmedLang) === 1) {
+                throw new \InvalidArgumentException('lang 不能包含换行符');
+            } else {
+                $this->lang = $trimmedLang;
+            }
+        } else {
+            $this->lang = null;
+        }
     }
 
     /**

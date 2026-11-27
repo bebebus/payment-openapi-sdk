@@ -33,6 +33,20 @@ export const Environment = Object.freeze({
   SANDBOX: 'http://127.0.0.1:3090/api/open/v1',
 });
 
+// 归一化可选语言标记（X-Lang 头）：未传/空白返回 null；禁止含回车换行防响应头注入。
+function normalizeLang(lang) {
+  if (lang === null || lang === undefined) return null;
+  if (typeof lang !== 'string') {
+    throw new TypeError('Config: lang must be a string');
+  }
+  const trimmed = lang.trim();
+  if (!trimmed) return null;
+  if (/[\r\n]/.test(trimmed)) {
+    throw new TypeError('Config: lang must not contain CR or LF');
+  }
+  return trimmed;
+}
+
 // 客户端配置。
 //  - merchantNo / apiKey：鉴权
 //  - apiSecretPay：pay 类接口与代收/退款回调密钥
@@ -40,6 +54,7 @@ export const Environment = Object.freeze({
 //  - environment：Environment.PRODUCTION | Environment.SANDBOX（默认 PRODUCTION）
 //  - baseUrl：显式覆盖基址（优先级高于 environment）；PRODUCTION 无内置 URL，必须显式传入
 //  - timeout：单请求超时（毫秒，默认 30000）
+//  - lang：可选响应语言（通过 X-Lang 请求头传递，如 'en-US'；不传默认服务端中文）
 export class Config {
   constructor({
     merchantNo,
@@ -49,6 +64,7 @@ export class Config {
     environment = Environment.PRODUCTION,
     baseUrl,
     timeout = 30000,
+    lang = null,
   } = {}) {
     if (!merchantNo) throw new TypeError('Config: merchantNo is required');
     if (!apiKey) throw new TypeError('Config: apiKey is required');
@@ -75,5 +91,6 @@ export class Config {
     this.baseUrl = resolved.slice(0, trimEnd);
 
     this.timeout = timeout;
+    this.lang = normalizeLang(lang);
   }
 }

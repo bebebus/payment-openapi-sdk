@@ -52,7 +52,7 @@ Client client = new Client(config);
 
 Map<String, Object> params = new LinkedHashMap<>();
 params.put("out_order_no", "202501010001");
-params.put("amount", 10000L);                      // smallest-unit integer: 10000 = 1.00
+params.put("amount", 100000L);                     // smallest-unit integer: 10000 = 1.00 (PHP minimum: 10 PHP = 100000)
 params.put("currency", "PHP");
 params.put("pay_method", "gcash");
 params.put("country", "PH");

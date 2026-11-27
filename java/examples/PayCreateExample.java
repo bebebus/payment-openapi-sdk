@@ -38,7 +38,7 @@ public class PayCreateExample {
         // 业务字段：值为 null 的会被自动跳过（不发送、不签名）
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("out_order_no", "202501010001");
-        params.put("amount", 10000L);          // 最小单位整数：10000 = 1 元
+        params.put("amount", 100000L);         // 最小单位整数：10000 = 1 元（PHP 下限 10 PHP = 100000）
         params.put("currency", "PHP");
         params.put("pay_method", "gcash");
         params.put("country", "PH");

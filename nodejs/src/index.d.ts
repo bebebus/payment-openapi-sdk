@@ -31,6 +31,8 @@ export interface ConfigOptions {
   baseUrl?: string;
   /** 单请求超时（毫秒，默认 30000）。 */
   timeout?: number;
+  /** 可选响应语言（通过 X-Lang 请求头传递，如 'en-US'；不传默认服务端中文）。 */
+  lang?: string | null;
 }
 
 /** 客户端配置。非 localhost 基址强制 https，否则构造抛 TypeError。 */
@@ -43,6 +45,8 @@ export class Config {
   /** 已去除末尾斜杠的最终基址。 */
   readonly baseUrl: string;
   readonly timeout: number;
+  /** 可选响应语言（X-Lang 头；未配置时为 null）。 */
+  readonly lang: string | null;
 }
 
 /** 业务错误：服务端返回 code !== 0 时抛出，携带原始信封（含非 2xx 带业务信封如 503/300304）。 */

@@ -414,6 +414,38 @@ func TestNestedJsonNumberAndUppercaseHexSign(t *testing.T) {
 	}
 }
 
+// TestLangHeader 校验 Config.Lang 通过 X-Lang 头传递，空白忽略，CRLF 返回 ErrInvalidLang。
+func TestLangHeader(t *testing.T) {
+	var gotLang string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotLang = r.Header.Get("X-Lang")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"code":0,"message":"ok","data":{}}`)
+	}))
+	defer srv.Close()
+
+	cDefault := NewClient(Config{BaseURL: srv.URL, SecretPay: "sk_pay", Lang: "   "})
+	if _, err := cDefault.BalanceQuery(context.Background(), nil); err != nil {
+		t.Fatalf("默认请求失败: %v", err)
+	}
+	if gotLang != "" {
+		t.Fatalf("空白 Lang 不应发送 X-Lang，实际: %q", gotLang)
+	}
+
+	cEn := NewClient(Config{BaseURL: srv.URL, SecretPay: "sk_pay", Lang: " en-US "})
+	if _, err := cEn.BalanceQuery(context.Background(), nil); err != nil {
+		t.Fatalf("英文请求失败: %v", err)
+	}
+	if gotLang != "en-US" {
+		t.Fatalf("期望 X-Lang=en-US，实际: %q", gotLang)
+	}
+
+	cBad := NewClient(Config{BaseURL: srv.URL, SecretPay: "sk_pay", Lang: "en-US\r\nX-Bad: 1"})
+	if _, err := cBad.BalanceQuery(context.Background(), nil); !errors.Is(err, ErrInvalidLang) {
+		t.Fatalf("含 CRLF 的 Lang 应返回 ErrInvalidLang，实际: %v", err)
+	}
+}
+
 // newTestServer 返回一个回放固定响应、并把请求体捕获到 captured 的测试服务器。
 func newTestServer(t *testing.T, captured *map[string]any, response string) *httptest.Server {
 	t.Helper()

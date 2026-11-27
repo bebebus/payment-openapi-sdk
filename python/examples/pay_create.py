@@ -37,7 +37,7 @@ def main() -> None:
         # 金额是最小单位整数：10000 = 1 元。
         order = client.pay_create(
             out_order_no="ORD20250101000001",
-            amount=10000,
+            amount=100000,
             currency="PHP",
             pay_method="gcash",
             country="PH",
